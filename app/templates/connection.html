@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-2">
+  <section class="glass-panel rounded-3xl p-6">
+    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Connection</div>
+    <h2 class="mt-3 text-3xl font-semibold">AD Bridge Setup</h2>
+    <p class="mt-2 text-sm text-slate-300">Validate LDAP connectivity and capture the hypervisor session details used for the lab bridge.</p>
+    <form data-connection-form class="mt-6 space-y-4">
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">LDAP Host</span>
+          <input name="ldap_host" value="dc01.lab.local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">LDAP Port</span>
+          <input name="ldap_port" value="389" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">Bind DN</span>
+          <input name="ldap_bind_dn" placeholder="CN=svc-active-decoy,OU=Service Accounts,DC=lab,DC=local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">Password</span>
+          <input name="ldap_password" type="password" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+      </div>
+      <label class="block">
+        <span class="mb-2 block text-sm text-slate-300">Base DN</span>
+        <input name="ldap_base_dn" placeholder="DC=lab,DC=local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+      </label>
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">Hypervisor</span>
+          <select name="hypervisor_type" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3">
+            {% for item in hypervisor_types %}
+            <option value="{{ item }}">{{ item | upper }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">VM Name</span>
+          <input name="hypervisor_vm_name" placeholder="Washu-DC" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+      </div>
+      <div class="grid gap-4 md:grid-cols-3">
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">Endpoint</span>
+          <input name="hypervisor_endpoint" placeholder="vcenter.lab.local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">Username</span>
+          <input name="hypervisor_username" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm text-slate-300">Wrapper Command</span>
+          <input name="wrapper_command" placeholder="/usr/local/bin/utm-wrapper" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+        </label>
+      </div>
+      <button class="rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400">Validate Connection</button>
+    </form>
+  </section>
+
+  <section class="glass-panel rounded-3xl p-6">
+    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Result</div>
+    <pre data-connection-result class="mt-4 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">Awaiting test...</pre>
+    <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+      <div class="font-medium text-cyan-200">Host Context</div>
+      <div class="mt-2">{{ host_environment.os_name }} · {{ host_environment.os_release }}</div>
+      <div class="mt-1">Mode: {{ bridge_state.status }}</div>
+    </div>
+  </section>
+</div>
+{% endblock %}

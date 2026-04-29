@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-2">
+  <section class="glass-panel rounded-3xl p-6">
+    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Monitoring</div>
+    <h2 class="mt-3 text-3xl font-semibold">Event Feed</h2>
+    <p class="mt-2 text-sm text-slate-300">Track authentication and Kerberos events relevant to honey-object activity.</p>
+    <div data-monitoring-panel class="mt-6 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">Loading feed...</div>
+  </section>
+
+  <section class="glass-panel rounded-3xl p-6">
+    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Signal Map</div>
+    <div class="mt-6 space-y-3 text-sm text-slate-300">
+      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><span>4768</span><span class="text-emerald-300">TGT request</span></div>
+      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><span>4769</span><span class="text-emerald-300">Service ticket</span></div>
+      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><span>4625</span><span class="text-amber-300">Failed logon</span></div>
+    </div>
+  </section>
+</div>
+{% endblock %}
