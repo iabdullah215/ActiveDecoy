@@ -24,9 +24,18 @@
   <section class="glass-panel rounded-3xl p-6">
     <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Health</div>
     <div class="mt-4 space-y-3 text-sm text-slate-300">
-      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><span>Directory</span><span class="text-emerald-300">Ready</span></div>
-      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><span>Graph</span><span class="text-emerald-300">Ready</span></div>
-      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><span>Deception</span><span class="text-emerald-300">Ready</span></div>
+      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3">
+        <span>Directory</span>
+        <span class="{% if health.directory == 'Ready' %}text-emerald-300{% else %}text-amber-300{% endif %}">{{ health.directory }}</span>
+      </div>
+      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3">
+        <span>Graph{% if health.graph_nodes %} ({{ health.graph_nodes }} nodes){% endif %}</span>
+        <span class="{% if health.graph == 'Ready' %}text-emerald-300{% elif health.graph == 'Not configured' %}text-slate-400{% else %}text-amber-300{% endif %}">{{ health.graph }}</span>
+      </div>
+      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3">
+        <span>Deception</span>
+        <span class="text-emerald-300">{{ health.deception }}</span>
+      </div>
     </div>
   </section>
 

@@ -16,7 +16,9 @@
         <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Graph Preview</div>
         <div class="mt-2 text-lg font-medium text-slate-100">Filtered for user name, role, and active connection state</div>
       </div>
-      <div class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200">Red = normal, Blue = honey</div>
+      <div class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200">
+        {% if graph_source == 'neo4j' %}Live from Neo4j{% else %}Preview data{% endif %} · Red = normal, Blue = honey
+      </div>
     </div>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-800">

@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
+from app.api.graph import build_graph_router
+from app.core.config import get_settings
 from app.core.connection_manager import (
     ConnectionManager,
     HypervisorConfig,
@@ -23,6 +25,7 @@ from app.core.connection_manager import (
     bridge_state_to_dict,
 )
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
+from app.core.graph_store import GraphStore
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -30,14 +33,14 @@ PROJECT_ROOT = BASE_DIR.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 GUIDE_PATH = PROJECT_ROOT / "data" / "user_guide.md"
+SAMPLE_GRAPH_PATH = PROJECT_ROOT / "data" / "sample_graph.cypher"
 
-TEST_USERNAME = "hawtsauce"
-TEST_PASSWORD = "hwatsauce"
+settings = get_settings()
 LOGIN_PATH = "/login"
 HOME_PATH = "/home"
 
-app = FastAPI(title="ActiveDecoy", version="0.1.0")
-app.add_middleware(SessionMiddleware, secret_key="active-decoy-development-secret")
+app = FastAPI(title="ActiveDecoy", version="0.2.0")
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,6 +53,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 connection_manager = ConnectionManager()
 deception_engine = DeceptionEngine(seed=42)
+graph_store = GraphStore(settings)
 logger = logging.getLogger(__name__)
 
 
@@ -94,6 +98,32 @@ def _normalize_credential(value: str) -> str:
     return re.sub(r"\s+", "", value).strip()
 
 
+def _health_label(ready: bool, configured: bool = True) -> str:
+    if not configured:
+        return "Not configured"
+    return "Ready" if ready else "Unavailable"
+
+
+def _graph_rows_for_visualization() -> list[dict[str, Any]]:
+    health = graph_store.health()
+    if health.connected:
+        try:
+            nodes = graph_store.fetch_honey_nodes()
+            if nodes:
+                return nodes
+        except Exception:
+            pass
+    return deception_engine.summarize_graph_rows(deception_engine.generate_honey_users(2))
+
+
+@app.on_event("shutdown")
+def shutdown_graph_store() -> None:
+    graph_store.close()
+
+
+app.include_router(build_graph_router(graph_store, deception_engine, _require_auth))
+
+
 @app.get("/", include_in_schema=False)
 def index(request: Request) -> RedirectResponse:
     return RedirectResponse(url=HOME_PATH if _authenticated(request) else LOGIN_PATH, status_code=status.HTTP_303_SEE_OTHER)
@@ -116,7 +146,7 @@ def login_submit(
     raw_password = password
     username = _normalize_credential(username)
     password = _normalize_credential(password)
-    if username == TEST_USERNAME and password == TEST_PASSWORD:
+    if username == settings.app_username and password == settings.app_password:
         request.session["authenticated"] = True
         request.session["username"] = username
         request.session["bridge_state"] = bridge_state_to_dict(connection_manager.get_bridge_state())
@@ -139,6 +169,8 @@ def logout(request: Request) -> RedirectResponse:
 @app.get("/home", response_class=HTMLResponse)
 def home(request: Request) -> HTMLResponse:
     _require_auth(request)
+    graph_health = graph_store.health()
+    bridge_status = request.session.get("bridge_state", {}).get("status", "not_connected")
     return _render(
         request,
         "home.html",
@@ -147,7 +179,13 @@ def home(request: Request) -> HTMLResponse:
             "host_os": connection_manager.host_environment.os_name,
             "host_release": connection_manager.host_environment.os_release,
             "mode": connection_manager.detect_connection_mode(),
-            "status": request.session.get("bridge_state", {}).get("status", "not_connected"),
+            "status": bridge_status,
+        },
+        health={
+            "directory": _health_label(bridge_status == "connected"),
+            "graph": _health_label(graph_health.connected, graph_health.configured),
+            "deception": "Ready",
+            "graph_nodes": graph_health.node_count,
         },
     )
 
@@ -167,23 +205,27 @@ def connection_page(request: Request) -> HTMLResponse:
 @app.get("/visualization", response_class=HTMLResponse)
 def visualization_page(request: Request) -> HTMLResponse:
     _require_auth(request)
+    graph_health = graph_store.health()
     return _render(
         request,
         "visualization.html",
         title="Visualization",
-        neodash_url=request.session.get("neodash_url", "https://neodash.graphapp.io"),
-        graph_rows=deception_engine.summarize_graph_rows(deception_engine.generate_honey_users(2)),
+        neodash_url=request.session.get("neodash_url", settings.neodash_url),
+        graph_rows=_graph_rows_for_visualization(),
+        graph_source="neo4j" if graph_health.connected else "preview",
     )
 
 
 @app.get("/deception", response_class=HTMLResponse)
 def deception_page(request: Request) -> HTMLResponse:
     _require_auth(request)
+    graph_health = graph_store.health()
     return _render(
         request,
         "deception.html",
         title="Deception",
         default_modules=["honey_users", "honey_servers", "breadcrumbs"],
+        graph_connected=graph_health.connected,
     )
 
 
@@ -202,10 +244,16 @@ def guide_page(request: Request) -> HTMLResponse:
 
 @app.get("/api/health")
 def api_health(request: Request) -> dict[str, Any]:
+    graph_health = graph_store.health()
     return {
         "status": "ok",
         "authenticated": _authenticated(request),
         "host": bridge_state_to_dict(connection_manager.get_bridge_state())["host"],
+        "graph": {
+            "configured": graph_health.configured,
+            "connected": graph_health.connected,
+            "node_count": graph_health.node_count,
+        },
     }
 
 
@@ -262,7 +310,7 @@ def api_connection_test(
     )
     request.session["bridge_state"] = bridge_state_to_dict(bridge_state)
     request.session["hypervisor_type"] = hypervisor_type
-    request.session["neodash_url"] = request.session.get("neodash_url", "https://neodash.graphapp.io")
+    request.session["neodash_url"] = settings.neodash_url
 
     return {
         "bridge_state": bridge_state_to_dict(bridge_state),
@@ -272,11 +320,23 @@ def api_connection_test(
 
 
 @app.post("/api/deception/deploy")
-def api_deception_deploy(request: Request, modules: Annotated[list[str] | None, Form()] = None) -> dict[str, Any]:
+def api_deception_deploy(
+    request: Request,
+    modules: Annotated[list[str] | None, Form()] = None,
+    sync_to_graph: Annotated[bool, Form()] = False,
+) -> dict[str, Any]:
     _require_auth(request)
     deployment = deception_engine.build_deployment(modules or [])
-    request.session["last_deployment"] = deployment_to_dict(deployment)
-    return deployment_to_dict(deployment)
+    payload = deployment_to_dict(deployment)
+    request.session["last_deployment"] = payload
+
+    if sync_to_graph:
+        graph_result = graph_store.execute_queries(payload.get("cypher_queries", []))
+        payload["graph_sync"] = graph_result
+        if graph_result["success"]:
+            payload["graph_node_count"] = graph_store.health().node_count
+
+    return payload
 
 
 @app.get("/api/monitoring/events")
@@ -290,15 +350,5 @@ def api_monitoring_events(request: Request) -> dict[str, Any]:
     return {"events": events}
 
 
-@app.get("/api/graph/preview")
-def api_graph_preview(request: Request) -> dict[str, Any]:
-    _require_auth(request)
-    deployment = request.session.get("last_deployment") or deployment_to_dict(deception_engine.build_deployment(["honey_users", "breadcrumbs"]))
-    return {
-        "nodes": deployment.get("objects", []),
-        "cypher_queries": deployment.get("cypher_queries", []),
-    }
-
-
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=settings.debug)
