@@ -3,32 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ActiveDecoy Login</title>
+  <title>Sign in · ActiveDecoy</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
 </head>
-<body class="min-h-screen bg-matrix-950 text-slate-100 cyber-grid">
-  <div class="flex min-h-screen items-center justify-center px-4">
-    <div class="glass-panel neon-border w-full max-w-md rounded-3xl p-8">
-      <div class="mb-6">
-        <div class="text-xs uppercase tracking-[0.45em] text-cyan-300/70">ActiveDecoy</div>
-        <h1 class="mt-3 text-3xl font-semibold">Secure Lab Login</h1>
-        <p class="mt-2 text-sm text-slate-400">Testing credentials: hawtsauce / hwatsauce</p>
+<body class="min-h-screen text-slate-100 cyber-grid">
+  <div class="flex min-h-screen items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      <div class="mb-8 text-center">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-indigo-500 text-lg font-bold text-slate-950 shadow-xl shadow-cyan-500/25">AD</div>
+        <h1 class="text-3xl font-bold text-white">ActiveDecoy</h1>
+        <p class="mt-2 text-sm text-slate-400">Autonomous ITDR & deception control plane</p>
       </div>
-      {% if error %}
-      <div class="mb-4 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{{ error }}</div>
-      {% endif %}
-      <form method="post" action="/login" class="space-y-4">
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Username</span>
-          <input name="username" value="hawtsauce" autocomplete="username" autofocus class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none focus:border-cyan-400/60" />
-        </label>
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Password</span>
-          <input name="password" type="password" value="hwatsauce" autocomplete="current-password" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none focus:border-cyan-400/60" />
-        </label>
-        <button type="submit" class="w-full rounded-xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400">Enter Console</button>
-      </form>
+
+      <div class="glass-panel neon-border rounded-3xl p-8">
+        {% if error %}
+        <div class="mb-5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login" class="space-y-5">
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Username</span>
+            <input name="username" value="hawtsauce" autocomplete="username" autofocus class="ad-input" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Password</span>
+            <input name="password" type="password" value="hwatsauce" autocomplete="current-password" class="ad-input" />
+          </label>
+          <button type="submit" class="ad-btn ad-btn-primary w-full">Enter Console</button>
+        </form>
+        <p class="mt-6 text-center text-xs text-slate-500">Authorized lab use only · Default: hawtsauce / hwatsauce</p>
+      </div>
     </div>
   </div>
 </body>

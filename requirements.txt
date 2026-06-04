@@ -7,6 +7,7 @@ ldap3>=2.9.1
 neo4j>=5.24.0
 psutil>=6.0.0
 python-dotenv>=1.0.1
+httpx>=0.27.0
 
 # Optional platform-specific dependencies for lab integration.
 # pyvmomi>=8.0.3

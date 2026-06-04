@@ -13,6 +13,7 @@ from importlib import import_module
 import platform
 import socket
 import subprocess
+import time
 from typing import Any
 
 
@@ -158,6 +159,40 @@ class ConnectionManager:
                 "debug": debug,
             }
 
+    def validate_ldap_connection_with_retry(
+        self,
+        config: LDAPConfig,
+        *,
+        retries: int = 3,
+        retry_delay: float = 0.5,
+    ) -> dict[str, Any]:
+        """Retry LDAP validation for transient network or directory delays."""
+
+        attempts = max(1, retries)
+        last_result: dict[str, Any] = {
+            "success": False,
+            "message": "LDAP validation did not run.",
+            "debug": [],
+        }
+
+        for attempt in range(1, attempts + 1):
+            last_result = self.validate_ldap_connection(config)
+            debug = list(last_result.get("debug", []))
+            debug.insert(0, f"LDAP attempt {attempt}/{attempts}.")
+            last_result["debug"] = debug
+            last_result["attempt"] = attempt
+            last_result["attempts"] = attempts
+
+            if last_result.get("success"):
+                last_result["message"] = "Connection Successful"
+                return last_result
+
+            if attempt < attempts and retry_delay > 0:
+                time.sleep(retry_delay)
+
+        last_result["message"] = f"LDAP validation failed after {attempts} attempt(s)."
+        return last_result
+
     def _load_ldap3(self) -> Any | None:
         try:
             return import_module("ldap3")
@@ -290,4 +325,19 @@ class ConnectionManager:
 def bridge_state_to_dict(state: BridgeState) -> dict[str, Any]:
     """Serialize bridge state for session storage and API responses."""
 
-    return asdict(state)
+    payload = asdict(state)
+    ldap = payload.get("ldap")
+    if isinstance(ldap, dict) and ldap.get("password"):
+        ldap = dict(ldap)
+        ldap["password"] = ""
+        ldap["password_set"] = True
+        payload["ldap"] = ldap
+
+    hypervisor = payload.get("hypervisor")
+    if isinstance(hypervisor, dict) and hypervisor.get("password"):
+        hypervisor = dict(hypervisor)
+        hypervisor["password"] = ""
+        hypervisor["password_set"] = True
+        payload["hypervisor"] = hypervisor
+
+    return payload

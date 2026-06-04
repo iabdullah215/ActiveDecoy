@@ -1,75 +1,141 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="grid gap-6 lg:grid-cols-2">
-  <section class="glass-panel rounded-3xl p-6">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Connection</div>
-    <h2 class="mt-3 text-3xl font-semibold">AD Bridge Setup</h2>
-    <p class="mt-2 text-sm text-slate-300">Validate LDAP connectivity and capture the hypervisor session details used for the lab bridge.</p>
-    <form data-connection-form class="mt-6 space-y-4">
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">LDAP Host</span>
-          <input name="ldap_host" value="dc01.lab.local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">LDAP Port</span>
-          <input name="ldap_port" value="389" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
+<div class="mb-8">
+  <div class="section-kicker">Directory Bridge</div>
+  <h2 class="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Connection Control</h2>
+  <p class="mt-2 max-w-2xl text-sm text-slate-400">Persist lab credentials, validate LDAP with automatic retries, and optional hypervisor health checks.</p>
+</div>
+
+<div class="grid gap-6 xl:grid-cols-12">
+  <section class="glass-panel rounded-3xl p-6 xl:col-span-7">
+    <form data-connection-form class="space-y-6" data-retries="{{ connection_retries }}">
+      <div>
+        <h3 class="text-sm font-semibold text-cyan-200">Active Directory (LDAP)</h3>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <label class="block sm:col-span-1">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">LDAP Host</span>
+            <input name="ldap_host" value="{{ connection_profile.ldap_host }}" required class="ad-input" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">LDAP Port</span>
+            <input name="ldap_port" type="number" value="{{ connection_profile.ldap_port }}" class="ad-input" />
+          </label>
+          <label class="block sm:col-span-2">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Bind DN</span>
+            <input name="ldap_bind_dn" value="{{ connection_profile.ldap_bind_dn }}" placeholder="CN=svc-active-decoy,OU=Service Accounts,DC=lab,DC=local" class="ad-input" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Password</span>
+            <input name="ldap_password" type="password" placeholder="{% if connection_profile.ldap_password_set %}Saved — leave blank to keep{% else %}LDAP password{% endif %}" class="ad-input" autocomplete="off" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Base DN</span>
+            <input name="ldap_base_dn" value="{{ connection_profile.ldap_base_dn }}" placeholder="DC=lab,DC=local" class="ad-input" />
+          </label>
+          <label class="flex items-center gap-3 sm:col-span-2 rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3">
+            <input type="checkbox" name="ldap_use_ssl" value="true" {% if connection_profile.ldap_use_ssl %}checked{% endif %} class="h-4 w-4 rounded border-slate-600 text-cyan-400 focus:ring-cyan-400" />
+            <span class="text-sm text-slate-300">Use LDAPS (SSL)</span>
+          </label>
+        </div>
       </div>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Bind DN</span>
-          <input name="ldap_bind_dn" placeholder="CN=svc-active-decoy,OU=Service Accounts,DC=lab,DC=local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Password</span>
-          <input name="ldap_password" type="password" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
+
+      <div class="border-t border-slate-800/80 pt-6">
+        <h3 class="text-sm font-semibold text-cyan-200">Hypervisor (optional)</h3>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Type</span>
+            <select name="hypervisor_type" data-hypervisor-type class="ad-input">
+              {% for item in hypervisor_types %}
+              <option value="{{ item }}" {% if connection_profile.hypervisor_type == item %}selected{% endif %}>{{ item | upper }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">VM Name</span>
+            <input name="hypervisor_vm_name" value="{{ connection_profile.hypervisor_vm_name }}" placeholder="Washu-DC" class="ad-input" />
+          </label>
+          <label class="block sm:col-span-2" data-field="endpoint">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Endpoint</span>
+            <input name="hypervisor_endpoint" value="{{ connection_profile.hypervisor_endpoint }}" placeholder="vcenter.lab.local" class="ad-input" />
+          </label>
+          <label class="block" data-field="hv-user">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Username</span>
+            <input name="hypervisor_username" value="{{ connection_profile.hypervisor_username }}" class="ad-input" />
+          </label>
+          <label class="block" data-field="hv-pass">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Password</span>
+            <input name="hypervisor_password" type="password" placeholder="{% if connection_profile.hypervisor_password_set %}Saved — leave blank to keep{% else %}Hypervisor password{% endif %}" class="ad-input" autocomplete="off" />
+          </label>
+          <label class="block sm:col-span-2 hidden" data-field="wrapper">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">UTM Wrapper Command</span>
+            <input name="wrapper_command" value="{{ connection_profile.wrapper_command }}" placeholder="/usr/local/bin/utm-wrapper" class="ad-input" />
+          </label>
+        </div>
       </div>
-      <label class="block">
-        <span class="mb-2 block text-sm text-slate-300">Base DN</span>
-        <input name="ldap_base_dn" placeholder="DC=lab,DC=local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
+
+      <label class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3">
+        <input type="checkbox" name="auto_test_on_load" value="true" {% if connection_profile.auto_test_on_load %}checked{% endif %} class="h-4 w-4 rounded border-slate-600 text-cyan-400" />
+        <span class="text-sm text-slate-300">Automatically re-test saved profile when this page loads</span>
       </label>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Hypervisor</span>
-          <select name="hypervisor_type" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3">
-            {% for item in hypervisor_types %}
-            <option value="{{ item }}">{{ item | upper }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">VM Name</span>
-          <input name="hypervisor_vm_name" placeholder="Washu-DC" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
+
+      <div class="flex flex-wrap gap-3">
+        <button type="submit" data-action="test" class="ad-btn ad-btn-primary">
+          <span data-test-label>Validate Connection</span>
+        </button>
+        <button type="button" data-action="save" class="ad-btn ad-btn-secondary">Save Profile</button>
+        <button type="button" data-action="retest" class="ad-btn ad-btn-secondary">Re-test Saved</button>
+        <button type="button" data-action="disconnect" class="ad-btn ad-btn-ghost">Clear Bridge</button>
       </div>
-      <div class="grid gap-4 md:grid-cols-3">
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Endpoint</span>
-          <input name="hypervisor_endpoint" placeholder="vcenter.lab.local" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Username</span>
-          <input name="hypervisor_username" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
-        <label class="block">
-          <span class="mb-2 block text-sm text-slate-300">Wrapper Command</span>
-          <input name="wrapper_command" placeholder="/usr/local/bin/utm-wrapper" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3" />
-        </label>
-      </div>
-      <button class="rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400">Validate Connection</button>
     </form>
   </section>
 
-  <section class="glass-panel rounded-3xl p-6">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Result</div>
-    <pre data-connection-result class="mt-4 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">Awaiting test...</pre>
-    <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
-      <div class="font-medium text-cyan-200">Host Context</div>
-      <div class="mt-2">{{ host_environment.os_name }} · {{ host_environment.os_release }}</div>
-      <div class="mt-1">Mode: {{ bridge_state.status }}</div>
-    </div>
-  </section>
+  <div class="space-y-6 xl:col-span-5">
+    <section class="glass-panel rounded-3xl p-6">
+      <div class="section-kicker">Live Status</div>
+      <div class="mt-4 grid gap-3" data-connection-status-cards>
+        <div data-status-ldap class="ad-status-card">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-slate-200">LDAP Directory</span>
+            <span data-status-ldap-badge class="ad-badge ad-badge-not_connected">pending</span>
+          </div>
+          <p data-status-ldap-msg class="mt-2 text-xs text-slate-500">Run validation to check directory reachability.</p>
+        </div>
+        <div data-status-hypervisor class="ad-status-card">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-slate-200">Hypervisor</span>
+            <span data-status-hypervisor-badge class="ad-badge ad-badge-not_connected">pending</span>
+          </div>
+          <p data-status-hypervisor-msg class="mt-2 text-xs text-slate-500">Optional — configure VMware endpoint or UTM wrapper.</p>
+        </div>
+        <div data-status-bridge class="ad-status-card">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-slate-200">Bridge</span>
+            <span data-status-bridge-badge class="ad-badge ad-badge-{{ bridge_state.status | default('not_connected') }}">{{ bridge_state.status | default('not_connected') }}</span>
+          </div>
+          <p data-status-bridge-msg class="mt-2 text-xs text-slate-500">{{ bridge_state.message or 'Not connected' }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass-panel rounded-3xl p-6">
+      <div class="flex items-center justify-between">
+        <div class="section-kicker">Debug Trace</div>
+        <span class="text-xs text-slate-500" data-retry-hint>Retries: {{ connection_retries }}</span>
+      </div>
+      <pre data-connection-debug class="ad-debug-log mt-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-slate-400">Awaiting test...</pre>
+    </section>
+
+    <section class="glass-panel rounded-3xl p-6">
+      <div class="section-kicker">Host Context</div>
+      <dl class="mt-4 space-y-2 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">OS</dt><dd class="text-slate-200">{{ host_environment.os_name }} {{ host_environment.os_release }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Hostname</dt><dd class="text-slate-200">{{ host_environment.hostname }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Bridge mode</dt><dd class="text-cyan-200">{% if host_environment.is_windows_server %}windows_server_local_bridge{% else %}hypervisor_bridge{% endif %}</dd></div>
+        {% if connection_profile.last_tested_at %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Last test</dt><dd class="text-slate-400 text-xs font-mono">{{ connection_profile.last_tested_at }}</dd></div>
+        {% endif %}
+      </dl>
+    </section>
+  </div>
 </div>
 {% endblock %}

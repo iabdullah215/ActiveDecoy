@@ -3,68 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title or "ActiveDecoy" }}</title>
+  <title>{{ title or "ActiveDecoy" }} · ITDR Console</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui']
+            sans: ['DM Sans', 'ui-sans-serif', 'system-ui'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
           },
-          colors: {
-            neon: {
-              50: '#ecfeff',
-              400: '#22d3ee',
-              500: '#06b6d4',
-              600: '#0891b2'
-            },
-            matrix: {
-              950: '#020617'
-            }
-          }
-        }
-      }
-    }
+        },
+      },
+    };
   </script>
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
 </head>
-<body class="min-h-screen text-slate-100 bg-matrix-950 cyber-grid">
+<body class="min-h-screen text-slate-100 bg-[#030712] cyber-grid">
   <div class="flex min-h-screen">
-    <aside class="hidden xl:flex xl:w-72 flex-col border-r border-cyan-400/10 bg-slate-950/80 backdrop-blur-xl">
-      <div class="px-6 py-6 border-b border-cyan-400/10">
-        <div class="text-xs uppercase tracking-[0.45em] text-cyan-300/70">ActiveDecoy</div>
-        <div class="mt-2 text-2xl font-semibold">Autonomous ITDR</div>
-        <div class="mt-1 text-sm text-slate-400">Deception, graph analytics, and monitored response.</div>
+    <aside class="ad-sidebar hidden xl:flex xl:w-72 flex-col border-r border-cyan-500/10">
+      <div class="px-6 py-7 border-b border-cyan-500/10">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-500/20">AD</div>
+          <div>
+            <div class="section-kicker">ActiveDecoy</div>
+            <div class="text-lg font-semibold leading-tight text-white">ITDR Console</div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs leading-relaxed text-slate-500">Deception orchestration, graph analytics, and monitored identity response.</p>
       </div>
-      <nav class="flex-1 px-4 py-5 space-y-2">
+      <nav class="flex-1 px-3 py-5 space-y-1">
         {% for item in navigation %}
-        <a href="{{ item.path }}" class="flex items-center justify-between rounded-xl border border-transparent px-4 py-3 text-sm text-slate-300 hover-lift hover:border-cyan-400/20 hover:bg-cyan-400/5">
+        <a href="{{ item.path }}" class="ad-nav-link flex items-center justify-between rounded-xl border border-transparent px-4 py-3 text-sm text-slate-400 {% if active_path == item.path %}is-active{% endif %}">
           <span>{{ item.label }}</span>
-          <span class="text-cyan-300/60">↗</span>
+          {% if item.path == '/connection' and connection_checklist.bridge %}
+          <span class="h-2 w-2 rounded-full {% if connection_checklist.bridge.status == 'connected' %}bg-emerald-400{% elif connection_checklist.bridge.status == 'degraded' %}bg-amber-400{% else %}bg-slate-600{% endif %}"></span>
+          {% else %}
+          <span class="text-cyan-500/40">→</span>
+          {% endif %}
         </a>
         {% endfor %}
       </nav>
-      <div class="px-6 py-5 border-t border-cyan-400/10 text-xs text-slate-500">
-        Session status: <span class="text-cyan-300">{{ bridge_state.status }}</span>
+      <div class="px-6 py-5 border-t border-cyan-500/10">
+        <div class="text-xs text-slate-500">Bridge</div>
+        <div class="mt-1 ad-badge ad-badge-{{ bridge_state.status | default('not_connected') }}">{{ bridge_state.status | default('not_connected') }}</div>
       </div>
     </aside>
 
-    <main class="flex-1">
-      <header class="sticky top-0 z-20 border-b border-cyan-400/10 bg-slate-950/75 backdrop-blur-xl">
-        <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+    <main class="flex-1 min-w-0">
+      <header class="sticky top-0 z-20 border-b border-cyan-500/10 bg-slate-950/80 backdrop-blur-xl">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
-            <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">{{ title or "Dashboard" }}</div>
-            <div class="text-sm text-slate-400">{{ bridge_state.host.os_name }} · {{ bridge_state.host.hostname }}</div>
+            <div class="section-kicker">{{ title or "Dashboard" }}</div>
+            <div class="mt-0.5 text-sm text-slate-400">{{ bridge_state.host.os_name }} · {{ bridge_state.host.hostname }}</div>
           </div>
-          <div class="flex items-center gap-3 text-sm text-slate-300">
-            <span class="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-emerald-200">{{ bridge_state.status }}</span>
-            <a href="/logout" class="rounded-full border border-slate-700 px-3 py-1.5 hover:border-cyan-400/30 hover:text-white">Logout</a>
+          <div class="flex items-center gap-3">
+            <span class="ad-badge ad-badge-{{ bridge_state.status | default('not_connected') }}">{{ bridge_state.status | default('not_connected') }}</span>
+            <a href="/logout" class="ad-btn ad-btn-ghost text-sm py-2 px-3">Logout</a>
           </div>
         </div>
+        <nav class="xl:hidden flex gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
+          {% for item in navigation %}
+          <a href="{{ item.path }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs {% if active_path == item.path %}bg-cyan-500/15 text-cyan-200{% else %}text-slate-500{% endif %}">{{ item.label }}</a>
+          {% endfor %}
+        </nav>
       </header>
 
-      <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {% block content %}{% endblock %}
       </div>
     </main>

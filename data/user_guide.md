@@ -8,7 +8,7 @@ directory visibility, deception planning, and monitored response.
 ## Workflow
 
 1. Authenticate with the development credentials.
-2. Establish the directory bridge from the Connection page.
+2. Establish the directory bridge from the Connection page (save profile, validate with retries, optional auto-test on load).
 3. Review graph data in the Visualization page.
 4. Deploy honey-object plans from the Deception page.
 5. Track telemetry in the Monitoring page.

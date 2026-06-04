@@ -15,14 +15,19 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
+from app.api.connection import build_connection_router
 from app.api.graph import build_graph_router
 from app.core.config import get_settings
 from app.core.connection_manager import (
     ConnectionManager,
-    HypervisorConfig,
     HypervisorType,
-    LDAPConfig,
     bridge_state_to_dict,
+)
+from app.core.connection_profile import (
+    ConnectionProfile,
+    load_session_profile,
+    redact_bridge_state,
+    save_session_profile,
 )
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
 from app.core.graph_store import GraphStore
@@ -39,7 +44,7 @@ settings = get_settings()
 LOGIN_PATH = "/login"
 HOME_PATH = "/home"
 
-app = FastAPI(title="ActiveDecoy", version="0.2.0")
+app = FastAPI(title="ActiveDecoy", version="0.3.0")
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 app.add_middleware(
     CORSMiddleware,
@@ -71,17 +76,35 @@ def _navigation() -> list[dict[str, str]]:
 def _current_bridge_state(request: Request) -> dict[str, Any]:
     bridge_state = request.session.get("bridge_state")
     if isinstance(bridge_state, dict):
-        return bridge_state
+        return redact_bridge_state(bridge_state)
     return bridge_state_to_dict(connection_manager.get_bridge_state())
+
+
+def _directory_ready(request: Request) -> bool:
+    checklist = request.session.get("connection_checklist", {})
+    if isinstance(checklist, dict):
+        ldap = checklist.get("ldap", {})
+        if isinstance(ldap, dict) and ldap.get("status") == "ok":
+            return True
+    bridge_status = request.session.get("bridge_state", {}).get("status", "not_connected")
+    return bridge_status in {"connected", "degraded"}
 
 
 def _authenticated(request: Request) -> bool:
     return bool(request.session.get("authenticated"))
 
 
-def _require_auth(request: Request) -> None:
+def _require_auth_page(request: Request) -> None:
     if not _authenticated(request):
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": LOGIN_PATH})
+
+
+def _require_auth_api(request: Request) -> None:
+    if not _authenticated(request):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
 
 
 def _render(request: Request, template_name: str, **context: Any) -> HTMLResponse:
@@ -89,6 +112,8 @@ def _render(request: Request, template_name: str, **context: Any) -> HTMLRespons
         "request": request,
         "navigation": _navigation(),
         "bridge_state": _current_bridge_state(request),
+        "active_path": request.url.path,
+        "connection_checklist": request.session.get("connection_checklist", {}),
         **context,
     }
     return templates.TemplateResponse(request, template_name, payload)
@@ -121,7 +146,8 @@ def shutdown_graph_store() -> None:
     graph_store.close()
 
 
-app.include_router(build_graph_router(graph_store, deception_engine, _require_auth))
+app.include_router(build_graph_router(graph_store, deception_engine, _require_auth_api))
+app.include_router(build_connection_router(connection_manager, settings, _require_auth_api))
 
 
 @app.get("/", include_in_schema=False)
@@ -150,6 +176,8 @@ def login_submit(
         request.session["authenticated"] = True
         request.session["username"] = username
         request.session["bridge_state"] = bridge_state_to_dict(connection_manager.get_bridge_state())
+        if not request.session.get("connection_profile"):
+            save_session_profile(request.session, ConnectionProfile.from_settings(settings))
         return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
     logger.warning(
         "Login rejected: username=%r password_length=%d username_length=%d",
@@ -168,9 +196,10 @@ def logout(request: Request) -> RedirectResponse:
 
 @app.get("/home", response_class=HTMLResponse)
 def home(request: Request) -> HTMLResponse:
-    _require_auth(request)
+    _require_auth_page(request)
     graph_health = graph_store.health()
     bridge_status = request.session.get("bridge_state", {}).get("status", "not_connected")
+    profile = load_session_profile(request.session, settings)
     return _render(
         request,
         "home.html",
@@ -180,9 +209,10 @@ def home(request: Request) -> HTMLResponse:
             "host_release": connection_manager.host_environment.os_release,
             "mode": connection_manager.detect_connection_mode(),
             "status": bridge_status,
+            "ldap_host": profile.ldap_host or "Not set",
         },
         health={
-            "directory": _health_label(bridge_status == "connected"),
+            "directory": _health_label(_directory_ready(request), bool(profile.ldap_host)),
             "graph": _health_label(graph_health.connected, graph_health.configured),
             "deception": "Ready",
             "graph_nodes": graph_health.node_count,
@@ -192,19 +222,22 @@ def home(request: Request) -> HTMLResponse:
 
 @app.get("/connection", response_class=HTMLResponse)
 def connection_page(request: Request) -> HTMLResponse:
-    _require_auth(request)
+    _require_auth_page(request)
+    profile = load_session_profile(request.session, settings)
     return _render(
         request,
         "connection.html",
         title="Connection",
         host_environment=connection_manager.host_environment,
         hypervisor_types=[item.value for item in HypervisorType],
+        connection_profile=profile.to_form_dict(),
+        connection_retries=settings.connection_retries,
     )
 
 
 @app.get("/visualization", response_class=HTMLResponse)
 def visualization_page(request: Request) -> HTMLResponse:
-    _require_auth(request)
+    _require_auth_page(request)
     graph_health = graph_store.health()
     return _render(
         request,
@@ -218,7 +251,7 @@ def visualization_page(request: Request) -> HTMLResponse:
 
 @app.get("/deception", response_class=HTMLResponse)
 def deception_page(request: Request) -> HTMLResponse:
-    _require_auth(request)
+    _require_auth_page(request)
     graph_health = graph_store.health()
     return _render(
         request,
@@ -231,13 +264,13 @@ def deception_page(request: Request) -> HTMLResponse:
 
 @app.get("/monitoring", response_class=HTMLResponse)
 def monitoring_page(request: Request) -> HTMLResponse:
-    _require_auth(request)
+    _require_auth_page(request)
     return _render(request, "monitoring.html", title="Monitoring")
 
 
 @app.get("/guide", response_class=HTMLResponse)
 def guide_page(request: Request) -> HTMLResponse:
-    _require_auth(request)
+    _require_auth_page(request)
     guide_markdown = GUIDE_PATH.read_text(encoding="utf-8") if GUIDE_PATH.exists() else "# User Guide\n\nNo guide content has been added yet."
     return _render(request, "guide.html", title="User Guide", guide_markdown=guide_markdown)
 
@@ -259,78 +292,22 @@ def api_health(request: Request) -> dict[str, Any]:
 
 @app.get("/api/system-state")
 def api_system_state(request: Request) -> dict[str, Any]:
-    _require_auth(request)
+    _require_auth_api(request)
     return _current_bridge_state(request)
-
-
-@app.post("/api/connection/test")
-def api_connection_test(
-    request: Request,
-    ldap_host: Annotated[str, Form()],
-    ldap_port: Annotated[int, Form()] = 389,
-    ldap_use_ssl: Annotated[bool, Form()] = False,
-    ldap_bind_dn: Annotated[str, Form()] = "",
-    ldap_password: Annotated[str, Form()] = "",
-    ldap_base_dn: Annotated[str, Form()] = "",
-    hypervisor_type: Annotated[str, Form()] = "vmware",
-    hypervisor_endpoint: Annotated[str, Form()] = "",
-    hypervisor_username: Annotated[str, Form()] = "",
-    hypervisor_password: Annotated[str, Form()] = "",
-    hypervisor_vm_name: Annotated[str, Form()] = "",
-    wrapper_command: Annotated[str, Form()] = "",
-) -> dict[str, Any]:
-    _require_auth(request)
-
-    hypervisor = HypervisorConfig(
-        hypervisor_type=HypervisorType(hypervisor_type),
-        endpoint=hypervisor_endpoint,
-        username=hypervisor_username,
-        password=hypervisor_password,
-        vm_name=hypervisor_vm_name,
-        extra={"wrapper_command": wrapper_command} if wrapper_command else {},
-    )
-    ldap = LDAPConfig(
-        host=ldap_host,
-        port=ldap_port,
-        use_ssl=ldap_use_ssl,
-        bind_dn=ldap_bind_dn,
-        password=ldap_password,
-        base_dn=ldap_base_dn,
-    )
-
-    hypervisor_result = connection_manager.connect_hypervisor(hypervisor)
-    ldap_result = connection_manager.validate_ldap_connection(ldap)
-
-    bridge_state = connection_manager.bind_bridge_state(
-        hypervisor=hypervisor,
-        ldap=ldap,
-        status="connected" if ldap_result["success"] else "degraded",
-        message=ldap_result["message"],
-        debug=[*hypervisor_result.get("debug", []), *ldap_result.get("debug", [])],
-    )
-    request.session["bridge_state"] = bridge_state_to_dict(bridge_state)
-    request.session["hypervisor_type"] = hypervisor_type
-    request.session["neodash_url"] = settings.neodash_url
-
-    return {
-        "bridge_state": bridge_state_to_dict(bridge_state),
-        "hypervisor_result": hypervisor_result,
-        "ldap_result": ldap_result,
-    }
 
 
 @app.post("/api/deception/deploy")
 def api_deception_deploy(
     request: Request,
     modules: Annotated[list[str] | None, Form()] = None,
-    sync_to_graph: Annotated[bool, Form()] = False,
+    sync_to_graph: Annotated[str, Form()] = "false",
 ) -> dict[str, Any]:
-    _require_auth(request)
+    _require_auth_api(request)
     deployment = deception_engine.build_deployment(modules or [])
     payload = deployment_to_dict(deployment)
     request.session["last_deployment"] = payload
 
-    if sync_to_graph:
+    if str(sync_to_graph).lower() in {"1", "true", "yes", "on"}:
         graph_result = graph_store.execute_queries(payload.get("cypher_queries", []))
         payload["graph_sync"] = graph_result
         if graph_result["success"]:
@@ -341,7 +318,7 @@ def api_deception_deploy(
 
 @app.get("/api/monitoring/events")
 def api_monitoring_events(request: Request) -> dict[str, Any]:
-    _require_auth(request)
+    _require_auth_api(request)
     events = [
         {"event_id": 4768, "label": "TGT requested", "severity": "high", "source": "Domain Controller", "state": "active"},
         {"event_id": 4769, "label": "Service ticket requested", "severity": "high", "source": "Domain Controller", "state": "active"},
