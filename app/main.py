@@ -1,4 +1,7 @@
-"""ActiveDecoy FastAPI backend."""
+"""ActiveDecoy FastAPI backend.
+
+Administrator credentials are loaded from .env via app.core.config (ADMIN_USERNAME, ADMIN_PASSWORD).
+"""
 
 from __future__ import annotations
 
@@ -172,7 +175,7 @@ def login_submit(
     raw_password = password
     username = _normalize_credential(username)
     password = _normalize_credential(password)
-    if username == settings.app_username and password == settings.app_password:
+    if username == settings.admin_username and password == settings.admin_password:
         request.session["authenticated"] = True
         request.session["username"] = username
         request.session["bridge_state"] = bridge_state_to_dict(connection_manager.get_bridge_state())
@@ -185,7 +188,7 @@ def login_submit(
         len(raw_password),
         len(raw_username),
     )
-    return _render(request, "login.html", title="Login", error="Invalid testing credentials.")
+    return _render(request, "login.html", title="Login", error="Invalid credentials.")
 
 
 @app.get("/logout")

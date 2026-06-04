@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Load secrets and service config from the project root .env (never commit .env).
 load_dotenv(PROJECT_ROOT / ".env")
 
 
@@ -20,8 +22,8 @@ def _env(key: str, default: str = "") -> str:
 @dataclass(frozen=True)
 class Settings:
     session_secret: str
-    app_username: str
-    app_password: str
+    admin_username: str
+    admin_password: str
     neo4j_uri: str
     neo4j_username: str
     neo4j_password: str
@@ -53,8 +55,8 @@ class Settings:
 def get_settings() -> Settings:
     return Settings(
         session_secret=_env("SESSION_SECRET", "active-decoy-development-secret"),
-        app_username=_env("APP_USERNAME", "hawtsauce"),
-        app_password=_env("APP_PASSWORD", "hwatsauce"),
+        admin_username=_env("ADMIN_USERNAME", "HwatSauce"),
+        admin_password=_env("ADMIN_PASSWORD", "Active-Decoy!2026"),
         neo4j_uri=_env("NEO4J_URI", "bolt://localhost:7687"),
         neo4j_username=_env("NEO4J_USERNAME", "neo4j"),
         neo4j_password=_env("NEO4J_PASSWORD", ""),

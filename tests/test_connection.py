@@ -106,7 +106,7 @@ class ConnectionApiTests(unittest.TestCase):
     def _login(self) -> None:
         response = self.client.post(
             "/login",
-            data={"username": "hawtsauce", "password": "hwatsauce"},
+            data={"username": "HwatSauce", "password": "Active-Decoy!2026"},
             follow_redirects=False,
         )
         self.assertEqual(response.status_code, 303)

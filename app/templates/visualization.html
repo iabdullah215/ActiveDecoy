@@ -1,50 +1,51 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="grid gap-6 xl:grid-cols-5">
-  <section class="glass-panel rounded-3xl p-6 xl:col-span-2">
-    <div class="section-kicker">Graph View</div>
-    <h2 class="mt-3 text-3xl font-bold text-white">Neo4j + NeoDash</h2>
-    <p class="mt-2 text-sm text-slate-300">Embed your NeoDash dashboard here once the graph store is connected.</p>
-    <div data-graph-panel class="mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/70">
-      <iframe src="{{ neodash_url }}" class="h-[540px] w-full" title="NeoDash dashboard"></iframe>
-    </div>
-  </section>
+{% set eyebrow = "Analytics" %}{% set heading = "Visualization" %}{% set lead = "Review NeoDash dashboards and honey-object inventory." %}
+{% include "partials/page_header.html" %}
 
-  <section class="glass-panel rounded-3xl p-6 xl:col-span-3">
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Graph Preview</div>
-        <div class="mt-2 text-lg font-medium text-slate-100">Filtered for user name, role, and active connection state</div>
-      </div>
-      <div class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200">
-        {% if graph_source == 'neo4j' %}Live from Neo4j{% else %}Preview data{% endif %} · Red = normal, Blue = honey
+<div class="grid-2 grid-2--wide-left">
+  <div class="card">
+    <div class="card__header">
+      <h2 class="card__title">NeoDash</h2>
+    </div>
+    <div class="card__body card__body--compact">
+      <div data-graph-panel class="embed-frame">
+        <iframe src="{{ neodash_url }}" title="NeoDash dashboard"></iframe>
       </div>
     </div>
+  </div>
 
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-800">
-      <table class="min-w-full divide-y divide-slate-800 text-sm">
-        <thead class="bg-slate-950/80 text-slate-400">
-          <tr>
-            <th class="px-4 py-3 text-left font-medium">Name</th>
-            <th class="px-4 py-3 text-left font-medium">Role</th>
-            <th class="px-4 py-3 text-left font-medium">Type</th>
-            <th class="px-4 py-3 text-left font-medium">Color</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-800 bg-slate-950/50">
-          {% for row in graph_rows %}
-          <tr>
-            <td class="px-4 py-3 text-slate-100">{{ row.name }}</td>
-            <td class="px-4 py-3 text-slate-300">{{ row.role }}</td>
-            <td class="px-4 py-3 text-slate-300">{{ row.object_type }}</td>
-            <td class="px-4 py-3">
-              <span class="rounded-full px-2.5 py-1 text-xs {% if row.color == 'blue' %}bg-blue-400/10 text-blue-200{% else %}bg-red-400/10 text-red-200{% endif %}">{{ row.color }}</span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <div class="card">
+    <div class="card__header">
+      <h2 class="card__title">Honey objects</h2>
+      <span class="badge {% if graph_source == 'neo4j' %}badge--connected{% else %}badge--pending{% endif %}">
+        {% if graph_source == 'neo4j' %}Live{% else %}Preview{% endif %}
+      </span>
     </div>
-  </section>
+    <div class="card__body card__body--compact">
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Type</th>
+              <th>Marker</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in graph_rows %}
+            <tr>
+              <td title="{{ row.name }}">{{ row.name }}</td>
+              <td title="{{ row.role }}">{{ row.role }}</td>
+              <td>{{ row.object_type }}</td>
+              <td>{{ row.color }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

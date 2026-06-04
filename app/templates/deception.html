@@ -1,43 +1,47 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="grid gap-6 xl:grid-cols-5">
-  <section class="glass-panel rounded-3xl p-6 xl:col-span-2">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Trapper</div>
-    <h2 class="mt-3 text-3xl font-semibold">Honey-Object Deployment</h2>
-    <p class="mt-2 text-sm text-slate-300">Select one or more deception modules and generate a Cypher payload for Neo4j ingestion.</p>
+{% set eyebrow = "Operations" %}{% set heading = "Deception" %}{% set lead = "Deploy honey-object modules and publish graph payloads to Neo4j." %}
+{% include "partials/page_header.html" %}
 
-    <form data-deception-form class="mt-6 space-y-4">
-      {% set options = [
-        ('honey_users', 'Honey Users'),
-        ('honey_servers', 'Honey Servers'),
-        ('honey_dc', 'Honey DC'),
-        ('breadcrumbs', 'Breadcrumbs')
-      ] %}
-      <div class="grid gap-3">
-        {% for value, label in options %}
-        <label class="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 hover:border-cyan-400/30">
-          <span>
-            <span class="block font-medium text-slate-100">{{ label }}</span>
-            <span class="block text-xs text-slate-500">Authorized deception payload</span>
-          </span>
-          <input type="checkbox" name="modules" value="{{ value }}" {% if value in default_modules %}checked{% endif %} class="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400" />
+<div class="grid-2 grid-2--wide-left">
+  <div class="card">
+    <div class="card__header">
+      <h2 class="card__title">Deployment modules</h2>
+    </div>
+    <div class="card__body">
+      <form data-deception-form>
+        {% set options = [
+          ('honey_users', 'Honey users'),
+          ('honey_servers', 'Honey servers'),
+          ('honey_dc', 'Honey DC'),
+          ('breadcrumbs', 'Breadcrumbs')
+        ] %}
+        <div class="option-list">
+          {% for value, label in options %}
+          <label class="option-item">
+            <span>{{ label }}</span>
+            <input type="checkbox" name="modules" value="{{ value }}" {% if value in default_modules %}checked{% endif %} />
+          </label>
+          {% endfor %}
+        </div>
+        <label class="checkbox u-mt">
+          <input type="checkbox" name="sync_to_graph" value="true" id="sync_graph" {% if graph_connected %}checked{% endif %} />
+          Sync to Neo4j{% if not graph_connected %} (offline){% endif %}
         </label>
-        {% endfor %}
-      </div>
-      <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-        <input type="checkbox" name="sync_to_graph" value="true" {% if graph_connected %}checked{% endif %} class="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400" />
-        <span>
-          <span class="block font-medium text-slate-100">Sync to Neo4j</span>
-          <span class="block text-xs text-slate-500">{% if graph_connected %}Push Cypher to the connected graph store{% else %}Neo4j offline — plan only{% endif %}</span>
-        </span>
-      </label>
-      <button type="submit" class="ad-btn ad-btn-primary w-full sm:w-auto">Deploy Deception Plan</button>
-    </form>
-  </section>
+        <div class="form-actions">
+          <button type="submit" class="btn btn--primary">Deploy plan</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  <section class="glass-panel rounded-3xl p-6 xl:col-span-3">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Deployment Preview</div>
-    <pre data-deception-result class="mt-4 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">Awaiting deployment...</pre>
-  </section>
+  <div class="card">
+    <div class="card__header">
+      <h2 class="card__title">Deployment output</h2>
+    </div>
+    <div class="card__body card__body--compact">
+      <pre data-deception-result class="code-block">Awaiting deployment…</pre>
+    </div>
+  </div>
 </div>
 {% endblock %}

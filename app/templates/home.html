@@ -1,48 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="grid gap-6 lg:grid-cols-4">
-  <section class="glass-panel neon-border rounded-3xl p-6 lg:col-span-2">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">System Overview</div>
-    <h2 class="mt-3 text-3xl font-semibold">ActiveDecoy Control Plane</h2>
-    <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Centralized ITDR operations for directory visibility, deception deployment, and monitored connection state.</p>
-    <div class="mt-6 grid gap-4 sm:grid-cols-3">
-      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-        <div class="text-xs uppercase tracking-[0.3em] text-slate-500">Host OS</div>
-        <div class="mt-2 text-lg font-medium text-cyan-200">{{ summary.host_os }}</div>
-      </div>
-      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-        <div class="text-xs uppercase tracking-[0.3em] text-slate-500">Bridge Mode</div>
-        <div class="mt-2 text-lg font-medium text-cyan-200">{{ summary.mode }}</div>
-      </div>
-      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-        <div class="text-xs uppercase tracking-[0.3em] text-slate-500">Connection</div>
-        <div class="mt-2 text-lg font-medium text-cyan-200">{{ summary.status }}</div>
-        <div class="mt-1 text-xs text-slate-500">{{ summary.ldap_host }}</div>
-      </div>
-    </div>
-  </section>
+{% set eyebrow = "Overview" %}{% set heading = "Dashboard" %}{% set lead = "Monitor directory connectivity, graph health, and deception readiness." %}
+{% include "partials/page_header.html" %}
 
-  <section class="glass-panel rounded-3xl p-6">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Health</div>
-    <div class="mt-4 space-y-3 text-sm text-slate-300">
-      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3">
-        <span>Directory</span>
-        <span class="{% if health.directory == 'Ready' %}text-emerald-300{% else %}text-amber-300{% endif %}">{{ health.directory }}</span>
-      </div>
-      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3">
-        <span>Graph{% if health.graph_nodes %} ({{ health.graph_nodes }} nodes){% endif %}</span>
-        <span class="{% if health.graph == 'Ready' %}text-emerald-300{% elif health.graph == 'Not configured' %}text-slate-400{% else %}text-amber-300{% endif %}">{{ health.graph }}</span>
-      </div>
-      <div class="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3">
-        <span>Deception</span>
-        <span class="text-emerald-300">{{ health.deception }}</span>
-      </div>
+<div class="grid-2 grid-home">
+  <div class="card">
+    <div class="card__header card__header--flat">
+      <h2 class="card__title">Environment</h2>
     </div>
-  </section>
+    <div class="card__body">
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric__label">Host OS</div>
+          <div class="metric__value">{{ summary.host_os }}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Bridge mode</div>
+          <div class="metric__value">{{ summary.mode }}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Connection</div>
+          <div class="metric__value">{{ summary.status }}</div>
+          <div class="metric__hint">{{ summary.ldap_host }}</div>
+        </div>
+      </div>
+      <p class="u-mt"><a href="/connection" class="u-link">Configure directory bridge →</a></p>
+    </div>
+  </div>
 
-  <section class="glass-panel rounded-3xl p-6">
-    <div class="text-xs uppercase tracking-[0.35em] text-cyan-300/70">Session</div>
-    <pre class="mt-4 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">{{ bridge_state | tojson(indent=2) }}</pre>
-  </section>
+  <div class="card">
+    <div class="card__header">
+      <h2 class="card__title">System health</h2>
+    </div>
+    <div class="card__body card__body--compact">
+      <ul class="data-list">
+        <li class="data-list__row">
+          <span class="data-list__label">Directory</span>
+          <span class="data-list__value {% if health.directory == 'Ready' %}data-list__value--ok{% else %}data-list__value--warn{% endif %}">{{ health.directory }}</span>
+        </li>
+        <li class="data-list__row">
+          <span class="data-list__label">Graph{% if health.graph_nodes %} ({{ health.graph_nodes }}){% endif %}</span>
+          <span class="data-list__value {% if health.graph == 'Ready' %}data-list__value--ok{% elif health.graph == 'Not configured' %}data-list__value--muted{% else %}data-list__value--warn{% endif %}">{{ health.graph }}</span>
+        </li>
+        <li class="data-list__row">
+          <span class="data-list__label">Deception</span>
+          <span class="data-list__value data-list__value--ok">{{ health.deception }}</span>
+        </li>
+      </ul>
+    </div>
+  </div>
 </div>
 {% endblock %}
