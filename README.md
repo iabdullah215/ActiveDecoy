@@ -61,6 +61,6 @@ ActiveDecoy/
 
 ## Development Notes
 
-- The project uses Jinja2 templates and Tailwind CDN for the dashboard shell.
+- The project uses Jinja2 templates and a Tailwind CDN for the dashboard shell.
 - The backend keeps AD and hypervisor state in the user session during the lab workflow.
 - The code is designed to be extended with real connectors and policy enforcement in your own environment.
