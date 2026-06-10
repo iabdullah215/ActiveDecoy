@@ -809,6 +809,39 @@ a:hover { color: var(--primary-hover); }
   color: var(--text-tertiary);
 }
 
+/* ——— Monitoring ——— */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.select--inline {
+  display: inline-block;
+  width: auto;
+  height: 34px;
+  font-size: 12px;
+}
+
+.btn--xs {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.table--events td {
+  max-width: 220px;
+}
+
+.table--events tr.is-honey td {
+  background: var(--danger-muted);
+}
+
+.table--events tr.is-honey:hover td {
+  background: rgba(239, 68, 68, 0.18);
+}
+
 /* ——— Utilities ——— */
 .u-hidden { display: none !important; }
 .u-link {
@@ -819,6 +852,9 @@ a:hover { color: var(--primary-hover); }
 }
 .u-link:hover { text-decoration: underline; }
 .u-mt { margin-top: 20px; }
+.u-mt-sm { margin-top: 12px; }
+.u-mb { margin-bottom: 20px; }
+.u-m0 { margin: 0; }
 
 .spinner {
   display: inline-block;

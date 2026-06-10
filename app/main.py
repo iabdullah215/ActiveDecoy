@@ -20,6 +20,7 @@ import uvicorn
 
 from app.api.connection import build_connection_router
 from app.api.graph import build_graph_router
+from app.api.monitoring import build_monitoring_router
 from app.core.config import get_settings
 from app.core.connection_manager import (
     ConnectionManager,
@@ -34,6 +35,7 @@ from app.core.connection_profile import (
 )
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
 from app.core.graph_store import GraphStore
+from app.core.monitoring_engine import MonitoringEngine
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -62,6 +64,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 connection_manager = ConnectionManager()
 deception_engine = DeceptionEngine(seed=42)
 graph_store = GraphStore(settings)
+monitoring_engine = MonitoringEngine(seed=42)
 logger = logging.getLogger(__name__)
 
 
@@ -151,6 +154,7 @@ def shutdown_graph_store() -> None:
 
 app.include_router(build_graph_router(graph_store, deception_engine, _require_auth_api))
 app.include_router(build_connection_router(connection_manager, settings, _require_auth_api))
+app.include_router(build_monitoring_router(monitoring_engine, _require_auth_api))
 
 
 @app.get("/", include_in_schema=False)
@@ -268,7 +272,13 @@ def deception_page(request: Request) -> HTMLResponse:
 @app.get("/monitoring", response_class=HTMLResponse)
 def monitoring_page(request: Request) -> HTMLResponse:
     _require_auth_page(request)
-    return _render(request, "monitoring.html", title="Monitoring")
+    return _render(
+        request,
+        "monitoring.html",
+        title="Monitoring",
+        monitoring_stats=monitoring_engine.stats(),
+        severities=["critical", "high", "medium", "info"],
+    )
 
 
 @app.get("/guide", response_class=HTMLResponse)
@@ -309,6 +319,7 @@ def api_deception_deploy(
     deployment = deception_engine.build_deployment(modules or [])
     payload = deployment_to_dict(deployment)
     request.session["last_deployment"] = payload
+    payload["monitored_objects"] = monitoring_engine.register_deployment(payload["objects"])
 
     if str(sync_to_graph).lower() in {"1", "true", "yes", "on"}:
         graph_result = graph_store.execute_queries(payload.get("cypher_queries", []))
@@ -317,17 +328,6 @@ def api_deception_deploy(
             payload["graph_node_count"] = graph_store.health().node_count
 
     return payload
-
-
-@app.get("/api/monitoring/events")
-def api_monitoring_events(request: Request) -> dict[str, Any]:
-    _require_auth_api(request)
-    events = [
-        {"event_id": 4768, "label": "TGT requested", "severity": "high", "source": "Domain Controller", "state": "active"},
-        {"event_id": 4769, "label": "Service ticket requested", "severity": "high", "source": "Domain Controller", "state": "active"},
-        {"event_id": 4625, "label": "Failed logon", "severity": "medium", "source": "Security Log", "state": "active"},
-    ]
-    return {"events": events}
 
 
 if __name__ == "__main__":

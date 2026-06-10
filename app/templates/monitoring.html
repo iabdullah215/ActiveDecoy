@@ -1,37 +1,126 @@
 {% extends "base.html" %}
 {% block content %}
-{% set eyebrow = "Telemetry" %}{% set heading = "Monitoring" %}{% set lead = "Observe authentication and Kerberos-related signals." %}
+{% set eyebrow = "Telemetry" %}{% set heading = "Monitoring" %}{% set lead = "Observe authentication and Kerberos-related signals, and triage honey-object interaction alerts." %}
 {% include "partials/page_header.html" %}
 
-<div class="grid-2">
+<div class="metrics u-mb">
+  <div class="metric">
+    <div class="metric__label">Events collected</div>
+    <div class="metric__value" data-mon-stat="total_events">{{ monitoring_stats.total_events }}</div>
+    <div class="metric__hint">Rolling in-memory feed</div>
+  </div>
+  <div class="metric">
+    <div class="metric__label">Honey triggers</div>
+    <div class="metric__value" data-mon-stat="honey_triggers">{{ monitoring_stats.honey_triggers }}</div>
+    <div class="metric__hint">Interactions with decoys</div>
+  </div>
+  <div class="metric">
+    <div class="metric__label">Unacknowledged</div>
+    <div class="metric__value" data-mon-stat="unacknowledged">{{ monitoring_stats.unacknowledged }}</div>
+    <div class="metric__hint">Honey alerts awaiting triage</div>
+  </div>
+  <div class="metric">
+    <div class="metric__label">Monitored objects</div>
+    <div class="metric__value" data-mon-stat="registered_honey_objects">{{ monitoring_stats.registered_honey_objects }}</div>
+    <div class="metric__hint">From the last deployment</div>
+  </div>
+</div>
+
+<div class="grid-2 grid-2--wide-left">
   <div class="card">
     <div class="card__header">
       <h2 class="card__title">Event stream</h2>
+      <span class="badge badge--pending" data-mon-feed-state>Idle</span>
     </div>
     <div class="card__body card__body--compact">
-      <pre data-monitoring-panel class="code-block">Loading…</pre>
+      <form data-monitoring-filters class="filter-bar">
+        <select name="severity" class="select select--inline">
+          <option value="">All severities</option>
+          {% for severity in severities %}
+          <option value="{{ severity }}">{{ severity | capitalize }}</option>
+          {% endfor %}
+        </select>
+        <select name="event_id" class="select select--inline">
+          <option value="">All event IDs</option>
+          <option value="4768">4768 — TGT</option>
+          <option value="4769">4769 — Service ticket</option>
+          <option value="4625">4625 — Failed logon</option>
+          <option value="4624">4624 — Logon</option>
+        </select>
+        <label class="checkbox">
+          <input type="checkbox" name="honey_only" value="true" />
+          Honey only
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="auto_refresh" value="true" checked />
+          Auto-refresh
+        </label>
+      </form>
+
+      <div class="table-wrap u-mt-sm">
+        <table class="table table--events">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>ID</th>
+              <th>Severity</th>
+              <th>Actor</th>
+              <th>Target</th>
+              <th>Detail</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody data-monitoring-table>
+            <tr><td colspan="7">Loading events…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card__header">
-      <h2 class="card__title">Signal reference</h2>
+  <div class="grid-stack">
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Lab controls</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <p class="status-block__msg u-m0">
+          Simulate an adversary touching the deployed honey objects to exercise the
+          detection pipeline. Deploy a plan from the Deception page first.
+        </p>
+        <div class="form-actions">
+          <button type="button" class="btn btn--primary" data-action="simulate">Simulate interaction</button>
+          <button type="button" class="btn btn--secondary" data-action="ack-all">Acknowledge all</button>
+          <button type="button" class="btn btn--ghost" data-action="refresh">Refresh</button>
+        </div>
+        <pre data-monitoring-message class="code-block u-mt-sm">No alerts triaged yet.</pre>
+      </div>
     </div>
-    <div class="card__body card__body--compact">
-      <ul class="data-list">
-        <li class="data-list__row">
-          <span class="data-list__label">4768</span>
-          <span class="data-list__value data-list__value--ok">TGT request</span>
-        </li>
-        <li class="data-list__row">
-          <span class="data-list__label">4769</span>
-          <span class="data-list__value data-list__value--ok">Service ticket</span>
-        </li>
-        <li class="data-list__row">
-          <span class="data-list__label">4625</span>
-          <span class="data-list__value data-list__value--warn">Failed logon</span>
-        </li>
-      </ul>
+
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Signal reference</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <ul class="data-list">
+          <li class="data-list__row">
+            <span class="data-list__label">4768</span>
+            <span class="data-list__value data-list__value--ok">TGT request — honey accounts should never request tickets</span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">4769</span>
+            <span class="data-list__value data-list__value--ok">Service ticket — bait SPNs flag Kerberoasting</span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">4625</span>
+            <span class="data-list__value data-list__value--warn">Failed logon — sprays against decoy identities</span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">4624</span>
+            <span class="data-list__value data-list__value--muted">Successful logon — breadcrumb credential use</span>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>

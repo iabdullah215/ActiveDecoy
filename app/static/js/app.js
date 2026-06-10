@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const connectionForm = document.querySelector("[data-connection-form]");
   const deceptionForm = document.querySelector("[data-deception-form]");
-  const monitoringPanel = document.querySelector("[data-monitoring-panel]");
+  const monitoringTable = document.querySelector("[data-monitoring-table]");
   const graphPanel = document.querySelector("[data-graph-panel]");
 
   const badgeClass = (status) => {
@@ -176,10 +176,149 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (monitoringPanel) {
-    fetch("/api/monitoring/events")
-      .then((r) => r.json())
-      .then((p) => { monitoringPanel.textContent = JSON.stringify(p, null, 2); })
-      .catch((err) => { monitoringPanel.textContent = err.message; });
+  if (monitoringTable) {
+    const filters = document.querySelector("[data-monitoring-filters]");
+    const messageEl = document.querySelector("[data-monitoring-message]");
+    const feedState = document.querySelector("[data-mon-feed-state]");
+    let refreshTimer = null;
+
+    const severityBadge = (severity) => {
+      const map = {
+        critical: "badge--error",
+        high: "badge--degraded",
+        medium: "badge--pending",
+        info: "badge--ok",
+      };
+      return `badge ${map[severity] || "badge--pending"}`;
+    };
+
+    const escapeHtml = (value) =>
+      String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[ch]);
+
+    const setMessage = (text) => {
+      if (messageEl) messageEl.textContent = text;
+    };
+
+    const updateStats = (stats) => {
+      if (!stats) return;
+      document.querySelectorAll("[data-mon-stat]").forEach((el) => {
+        const key = el.getAttribute("data-mon-stat");
+        if (key in stats) el.textContent = stats[key];
+      });
+    };
+
+    const renderEvents = (events) => {
+      if (!events.length) {
+        monitoringTable.innerHTML = '<tr><td colspan="7">No events match the current filters.</td></tr>';
+        return;
+      }
+      monitoringTable.innerHTML = events
+        .map((event) => {
+          const time = new Date(event.timestamp).toLocaleTimeString();
+          const honeyRow = event.honey_object ? ' class="is-honey"' : "";
+          const detail = event.honey_object
+            ? `${escapeHtml(event.description)}`
+            : escapeHtml(event.description || event.label);
+          const ackCell = event.honey_object
+            ? event.acknowledged
+              ? '<span class="badge badge--skipped">acked</span>'
+              : `<button type="button" class="btn btn--secondary btn--xs" data-ack="${event.uid}">Ack</button>`
+            : "";
+          return `<tr${honeyRow}>
+            <td>${escapeHtml(time)}</td>
+            <td>${event.event_id}</td>
+            <td><span class="${severityBadge(event.severity)}">${escapeHtml(event.severity)}</span></td>
+            <td title="${escapeHtml(event.actor)}">${escapeHtml(event.actor)}</td>
+            <td title="${escapeHtml(event.target)}">${escapeHtml(event.target)}</td>
+            <td title="${detail}">${detail}</td>
+            <td>${ackCell}</td>
+          </tr>`;
+        })
+        .join("");
+    };
+
+    const filterQuery = () => {
+      const params = new URLSearchParams();
+      if (!filters) return params;
+      const severity = filters.querySelector('[name="severity"]')?.value;
+      const eventId = filters.querySelector('[name="event_id"]')?.value;
+      const honeyOnly = filters.querySelector('[name="honey_only"]')?.checked;
+      if (severity) params.set("severity", severity);
+      if (eventId) params.set("event_id", eventId);
+      if (honeyOnly) params.set("honey_only", "true");
+      params.set("limit", "50");
+      return params;
+    };
+
+    const loadEvents = async () => {
+      try {
+        const res = await fetch(`/api/monitoring/events?${filterQuery()}`);
+        if (!res.ok) throw new Error(`Feed request failed (${res.status})`);
+        const payload = await res.json();
+        renderEvents(payload.events || []);
+        updateStats(payload.stats);
+        if (feedState) {
+          feedState.textContent = "Live";
+          feedState.className = "badge badge--connected";
+        }
+      } catch (error) {
+        if (feedState) {
+          feedState.textContent = "Error";
+          feedState.className = "badge badge--error";
+        }
+        setMessage(error.message);
+      }
+    };
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = null;
+      const enabled = filters?.querySelector('[name="auto_refresh"]')?.checked;
+      if (enabled) refreshTimer = setInterval(loadEvents, 8000);
+    };
+
+    filters?.addEventListener("change", () => {
+      loadEvents();
+      scheduleRefresh();
+    });
+
+    monitoringTable.addEventListener("click", async (e) => {
+      const button = e.target.closest("[data-ack]");
+      if (!button) return;
+      const formData = new FormData();
+      formData.set("uid", button.getAttribute("data-ack"));
+      const res = await fetch("/api/monitoring/acknowledge", { method: "POST", body: formData });
+      const payload = await res.json();
+      updateStats(payload.stats);
+      setMessage(payload.success ? `Acknowledged event ${formData.get("uid")}.` : payload.message);
+      loadEvents();
+    });
+
+    document.querySelector('[data-action="simulate"]')?.addEventListener("click", async () => {
+      const formData = new FormData();
+      formData.set("count", "3");
+      const res = await fetch("/api/monitoring/simulate", { method: "POST", body: formData });
+      const payload = await res.json();
+      setMessage(payload.message);
+      updateStats(payload.stats);
+      loadEvents();
+    });
+
+    document.querySelector('[data-action="ack-all"]')?.addEventListener("click", async () => {
+      const formData = new FormData();
+      formData.set("ack_all", "true");
+      const res = await fetch("/api/monitoring/acknowledge", { method: "POST", body: formData });
+      const payload = await res.json();
+      setMessage(`Acknowledged ${payload.updated} honey alert(s).`);
+      updateStats(payload.stats);
+      loadEvents();
+    });
+
+    document.querySelector('[data-action="refresh"]')?.addEventListener("click", loadEvents);
+
+    loadEvents();
+    scheduleRefresh();
   }
 });
