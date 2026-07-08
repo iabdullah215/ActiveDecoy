@@ -12,6 +12,7 @@ from app.core.deception_engine import DeceptionEngine, HoneyObject, deployment_t
 from app.core.deployment_history import DeploymentHistoryStore, DeploymentRecord
 from app.core.graph_store import GraphStore
 from app.core.monitoring_engine import MonitoringEngine
+from app.core.policy import PolicyEngine
 
 
 def build_provisioner(settings: Settings) -> ADProvisioner:
@@ -60,7 +61,42 @@ def run_deception_deploy(
         deception_engine.to_cypher(_as_honey(item)) for item in stamped_objects
     ]
 
+    policy_engine = PolicyEngine(settings)
+    policy_report = policy_engine.evaluate(objects=stamped_objects, provision_ad=provision_ad)
+    payload["policy"] = policy_report.to_dict()
+
     ad_result: dict[str, Any] | None = None
+    if provision_ad:
+        gate = policy_engine.gate_provision(stamped_objects, dry_run=dry_run)
+        payload["policy"] = gate.get("report") or payload["policy"]
+        if gate.get("blocked"):
+            payload["ad_provision"] = {
+                "success": False,
+                "blocked_by_policy": True,
+                "message": gate.get("reason") or "Blocked by ITDR policy.",
+                "results": [],
+                "created": [],
+            }
+            payload["monitored_objects"] = monitoring_engine.register_deployment(stamped_objects)
+            payload["graph_sync"] = None
+            payload["success"] = False
+            payload["message"] = gate.get("reason") or "Provisioning blocked by policy."
+            record = DeploymentRecord(
+                deployment_id=deployment_id,
+                created_at=payload["created_at"],
+                actor=actor,
+                modules=list(modules),
+                objects=stamped_objects,
+                provisioned=[],
+                graph_synced=False,
+                ad_provisioned=False,
+                dry_run=dry_run,
+                status="plan_only",
+                notes=payload["message"],
+            )
+            history.add(record)
+            payload["history"] = record.to_dict()
+            return payload
     if provision_ad:
         if ldap_config is None or not ldap_config.host.strip():
             ad_result = {

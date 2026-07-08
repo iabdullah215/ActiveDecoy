@@ -52,6 +52,10 @@
           Honey only
         </label>
         <label class="checkbox">
+          <input type="checkbox" name="exclude_baseline" value="true" />
+          Hide baseline noise
+        </label>
+        <label class="checkbox">
           <input type="checkbox" name="auto_refresh" value="true" checked />
           Auto-refresh
         </label>
@@ -130,8 +134,14 @@
           <button type="button" class="btn btn--primary" data-action="simulate">Simulate interaction</button>
           <button type="button" class="btn btn--secondary" data-action="ack-all">Acknowledge all</button>
           <button type="button" class="btn btn--ghost" data-action="refresh">Refresh</button>
+          <a class="btn btn--ghost" href="/policy">Policy &amp; playbooks</a>
+        </div>
+        <div class="form-actions u-mt-sm">
+          <a class="btn btn--secondary btn--xs" href="/api/policy/export?format=json&honey_only=true&exclude_baseline=true&download=true">Export JSON</a>
+          <a class="btn btn--secondary btn--xs" href="/api/policy/export?format=stix&honey_only=true&exclude_baseline=true&download=true">Export STIX</a>
         </div>
         <pre data-monitoring-message class="code-block u-mt-sm">No alerts triaged yet.</pre>
+        <pre data-playbook-panel class="code-block u-mt-sm">Select a honey alert Ack cell context or open Policy for full playbooks.</pre>
       </div>
     </div>
 

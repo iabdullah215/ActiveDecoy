@@ -418,6 +418,7 @@ class MonitoringEngine:
         severity: str | None = None,
         event_id: int | None = None,
         honey_only: bool = False,
+        exclude_baseline: bool = False,
         limit: int = 50,
         since_uid: int | None = None,
     ) -> list[dict[str, Any]]:
@@ -430,6 +431,13 @@ class MonitoringEngine:
             events = [event for event in events if event.event_id == event_id]
         if honey_only:
             events = [event for event in events if event.honey_object]
+        if exclude_baseline:
+            # Keep honey triggers, agent ingest, and simulated attacks; drop ambient seed noise.
+            events = [
+                event
+                for event in events
+                if event.honey_object or event.ingested or event.agent_id
+            ]
         if since_uid is not None:
             events = [event for event in events if event.uid > since_uid]
 

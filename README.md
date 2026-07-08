@@ -60,6 +60,14 @@ ActiveDecoy/
 - Persistent event store and SSE live stream for the Monitoring console.
 - Lab interaction simulator to exercise the detection pipeline end to end.
 - Alert triage with per-event and bulk acknowledgement plus rollup stats.
+- Baseline noise suppression and alert export (JSON / STIX / syslog).
+
+### Policy & ITDR
+
+- Honey OU + naming prefix enforcement with provision gating.
+- Deny-logon GPO artifacts and operator checklist.
+- Response playbooks per Event ID.
+- Multi-domain tracking via OU / `AD_MONITORED_DOMAINS`.
 
 ## Quick Start
 

@@ -20,6 +20,8 @@ directory visibility, deception planning, and monitored response.
    Agent (`python -m washu_agent run`) / ingest API for forwarded events, and
    acknowledge honey alerts as you triage them. The Washu Agent card shows
    heartbeat health for registered monitoring VMs.
+7. Use the Policy page for deny-logon GPO guidance, playbooks, and alert export
+   (JSON / STIX / syslog). Hide baseline noise on Monitoring when triaging.
 
 ## Safety Notes
 

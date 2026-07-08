@@ -75,6 +75,7 @@ class Settings:
     ad_honey_name_prefix: str
     ad_require_name_prefix: bool
     ad_provision_enabled: bool
+    ad_monitored_domains: str
 
     @property
     def neo4j_configured(self) -> bool:
@@ -135,6 +136,7 @@ def get_settings() -> Settings:
         ad_honey_name_prefix=_env("AD_HONEY_NAME_PREFIX", "hw_"),
         ad_require_name_prefix=_env_bool("AD_REQUIRE_NAME_PREFIX", "true"),
         ad_provision_enabled=_env_bool("AD_PROVISION_ENABLED", "false"),
+        ad_monitored_domains=_env("AD_MONITORED_DOMAINS", ""),
     )
 
 

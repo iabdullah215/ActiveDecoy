@@ -164,6 +164,14 @@ python scripts/forward_sample_events.py --honey-user hw_alex.hale
 
 Events persist in `data/monitoring_events.json` (gitignored).
 
+### Policy & ITDR (Chunk 8)
+
+1. Set `AD_HONEY_OU`, keep `AD_REQUIRE_NAME_PREFIX=true`, and optionally `AD_MONITORED_DOMAINS`.
+2. Open **Policy** for posture score, deny-logon GPO checklist, and response playbooks.
+3. Live AD provisioning is blocked when critical checks fail (empty honey OU / bad names).
+4. Export alerts: `GET /api/policy/export?format=json|stix|syslog&honey_only=true&exclude_baseline=true`.
+5. On Monitoring, enable **Hide baseline noise** and click a honey row for the matching playbook.
+
 If you are testing honey-user creation or similar workflows, ensure the account has explicit authorization to create directory objects in the chosen OU.
 
 ### AD honey provisioning (Chunk 4)

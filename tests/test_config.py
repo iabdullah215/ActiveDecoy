@@ -46,6 +46,7 @@ def _settings(**overrides) -> Settings:
         ad_honey_name_prefix="hw_",
         ad_require_name_prefix=True,
         ad_provision_enabled=False,
+        ad_monitored_domains="",
     )
     base.update(overrides)
     return Settings(**base)

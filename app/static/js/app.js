@@ -355,9 +355,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const severity = filters.querySelector('[name="severity"]')?.value;
       const eventId = filters.querySelector('[name="event_id"]')?.value;
       const honeyOnly = filters.querySelector('[name="honey_only"]')?.checked;
+      const excludeBaseline = filters.querySelector('[name="exclude_baseline"]')?.checked;
       if (severity) params.set("severity", severity);
       if (eventId) params.set("event_id", eventId);
       if (honeyOnly) params.set("honey_only", "true");
+      if (excludeBaseline) params.set("exclude_baseline", "true");
       params.set("limit", "50");
       return params;
     };
@@ -426,7 +428,34 @@ document.addEventListener("DOMContentLoaded", () => {
       startStream();
     });
 
+    const playbookPanel = document.querySelector("[data-playbook-panel]");
+
+    const loadPlaybook = async (uid, eventId) => {
+      if (!playbookPanel) return;
+      try {
+        const params = new URLSearchParams();
+        if (uid) params.set("uid", uid);
+        if (eventId) params.set("event_id", eventId);
+        const res = await fetch(`/api/policy/playbook?${params}`);
+        if (!res.ok) throw new Error(`Playbook request failed (${res.status})`);
+        const payload = await res.json();
+        const pb = payload.playbook || {};
+        const steps = (pb.steps || []).map((step, idx) => `${idx + 1}. ${step}`).join("\n");
+        playbookPanel.textContent = `${pb.title || "Playbook"}\n\n${pb.summary || ""}\n\n${steps}`;
+      } catch (error) {
+        playbookPanel.textContent = error.message;
+      }
+    };
+
     monitoringTable.addEventListener("click", async (e) => {
+      const row = e.target.closest("tr.is-honey");
+      if (row && !e.target.closest("[data-ack]")) {
+        const cells = row.querySelectorAll("td");
+        const eventId = cells[1]?.textContent?.trim();
+        const ackBtn = row.querySelector("[data-ack]");
+        const uid = ackBtn?.getAttribute("data-ack");
+        loadPlaybook(uid, eventId);
+      }
       const button = e.target.closest("[data-ack]");
       if (!button) return;
       const formData = new FormData();
@@ -435,6 +464,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const payload = await res.json();
       updateStats(payload.stats);
       setMessage(payload.success ? `Acknowledged event ${formData.get("uid")}.` : payload.message);
+      loadPlaybook(formData.get("uid"));
       loadEvents();
     });
 

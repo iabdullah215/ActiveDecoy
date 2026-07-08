@@ -75,6 +75,7 @@ def build_monitoring_router(
         severity: str | None = None,
         event_id: int | None = None,
         honey_only: bool = False,
+        exclude_baseline: bool = False,
         limit: int = 50,
         since_uid: int | None = None,
     ) -> dict[str, Any]:
@@ -85,6 +86,7 @@ def build_monitoring_router(
             severity=severity,
             event_id=event_id,
             honey_only=honey_only,
+            exclude_baseline=exclude_baseline,
             limit=limit,
             since_uid=since_uid,
         )

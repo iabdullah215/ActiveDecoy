@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+{% set eyebrow = "ITDR" %}{% set heading = "Policy" %}{% set lead = "Enforce no-legitimate-use controls for honey objects and operationalize alert response." %}
+{% include "partials/page_header.html" %}
+
+<div class="metrics u-mb">
+  <div class="metric">
+    <div class="metric__label">Policy score</div>
+    <div class="metric__value">{{ policy_report.score }}</div>
+    <div class="metric__hint">{% if policy_report.ok %}Posture acceptable{% else %}Action required{% endif %}</div>
+  </div>
+  <div class="metric">
+    <div class="metric__label">Honey OU</div>
+    <div class="metric__value" style="font-size:1rem">{{ policy_report.naming.honey_ou or 'unset' }}</div>
+    <div class="metric__hint">Prefix {{ policy_report.naming.prefix }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric__label">Domains</div>
+    <div class="metric__value">{{ policy_report.domains | length }}</div>
+    <div class="metric__hint">{{ policy_report.domains | join(', ') or 'derive from OU / AD_MONITORED_DOMAINS' }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric__label">Checks</div>
+    <div class="metric__value">{{ policy_report.checks | length }}</div>
+    <div class="metric__hint">pass / warn / fail</div>
+  </div>
+</div>
+
+<div class="grid-2 grid-2--wide-left">
+  <div class="grid-stack">
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Policy checks</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <ul class="data-list">
+          {% for check in policy_report.checks %}
+          <li class="data-list__row">
+            <span class="data-list__label">
+              <span class="badge {% if check.status == 'pass' %}badge--connected{% elif check.status == 'fail' %}badge--error{% elif check.status == 'warn' %}badge--degraded{% else %}badge--pending{% endif %}">{{ check.status }}</span>
+              {{ check.title }}
+            </span>
+            <span class="data-list__value">{{ check.message }}{% if check.remediation %}<br><span class="data-list__value--muted">{{ check.remediation }}</span>{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Response playbooks</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        {% for pb in playbooks %}
+        <div class="u-mb">
+          <div class="card__title" style="font-size:1rem">{{ pb.title }}</div>
+          <p class="status-block__msg u-m0">{{ pb.summary }}</p>
+          <ol class="status-block__msg">
+            {% for step in pb.steps %}
+            <li>{{ step }}</li>
+            {% endfor %}
+          </ol>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-stack">
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Deny-logon GPO</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <p class="status-block__msg u-m0">{{ deny_logon.principle }}</p>
+        <ul class="data-list u-mt-sm">
+          <li class="data-list__row">
+            <span class="data-list__label">GPO</span>
+            <span class="data-list__value"><code>{{ deny_logon.gpo_name }}</code></span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">Link OU</span>
+            <span class="data-list__value"><code>{{ deny_logon.link_ou }}</code></span>
+          </li>
+        </ul>
+        <p class="status-block__msg u-mt-sm"><strong>Checklist</strong></p>
+        <ol class="status-block__msg">
+          {% for item in deny_logon.checklist %}
+          <li>{{ item }}</li>
+          {% endfor %}
+        </ol>
+        <pre class="code-block u-mt-sm">{{ deny_logon.powershell_skeleton }}</pre>
+        <pre class="code-block u-mt-sm">{{ deny_logon.inf_snippet }}</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Export alerts</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <p class="status-block__msg u-m0">Download honey / non-baseline alerts for evidence packs.</p>
+        <div class="form-actions u-mt-sm">
+          <a class="btn btn--secondary" href="/api/policy/export?format=json&honey_only=true&exclude_baseline=true&download=true">JSON</a>
+          <a class="btn btn--secondary" href="/api/policy/export?format=stix&honey_only=true&exclude_baseline=true&download=true">STIX 2.1</a>
+          <a class="btn btn--secondary" href="/api/policy/export?format=syslog&honey_only=true&exclude_baseline=true&download=true">Syslog</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

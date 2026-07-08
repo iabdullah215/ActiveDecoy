@@ -23,6 +23,7 @@ from app.api.agents import build_agents_router
 from app.api.connection import build_connection_router
 from app.api.graph import build_graph_router
 from app.api.monitoring import build_monitoring_router
+from app.api.policy import build_policy_router
 from app.core.agent_registry import AgentRegistry
 from app.core.audit import audit_event, client_ip
 from app.core.config import enforce_startup_guards, get_settings, log_settings_summary
@@ -44,6 +45,8 @@ from app.core.deployment_history import DeploymentHistoryStore
 from app.core.graph_store import GRAPH_LABELS, GraphStore
 from app.core.logging_config import configure_logging
 from app.core.monitoring_engine import MonitoringEngine
+from app.core.playbooks import list_playbooks
+from app.core.policy import PolicyEngine
 from app.core.rate_limit import SlidingWindowRateLimiter
 
 
@@ -94,7 +97,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.9.0", lifespan=lifespan)
+app = FastAPI(title="ActiveDecoy", version="0.10.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -120,6 +123,7 @@ def _navigation() -> list[dict[str, str]]:
         {"label": "Visualization", "path": "/visualization"},
         {"label": "Deception", "path": "/deception"},
         {"label": "Monitoring", "path": "/monitoring"},
+        {"label": "Policy", "path": "/policy"},
         {"label": "User Guide", "path": "/guide"},
     ]
 
@@ -203,6 +207,14 @@ app.include_router(
     build_monitoring_router(monitoring_engine, _require_auth_api, settings, agent_registry)
 )
 app.include_router(build_agents_router(agent_registry, _require_auth_api, settings))
+app.include_router(
+    build_policy_router(
+        settings=settings,
+        monitoring_engine=monitoring_engine,
+        agent_registry=agent_registry,
+        require_auth=_require_auth_api,
+    )
+)
 
 
 @app.get("/", include_in_schema=False)
@@ -366,6 +378,35 @@ def deception_page(request: Request) -> HTMLResponse:
         ad_honey_name_prefix=settings.ad_honey_name_prefix,
         ldap_ready=bool(profile.ldap_configured()),
         deployment_history=deployment_history.list_records(limit=8),
+    )
+
+
+@app.get("/policy", response_class=HTMLResponse)
+def policy_page(request: Request) -> HTMLResponse:
+    _require_auth_page(request)
+    objects: list[dict[str, Any]] = []
+    last = request.session.get("last_deployment")
+    if isinstance(last, dict):
+        objects = list(last.get("objects") or [])
+    report = PolicyEngine(settings).evaluate(
+        objects=objects,
+        provision_ad=False,
+        agent_healthy=int(agent_registry.summary().get("healthy") or 0),
+    )
+    deny = PolicyEngine(settings).deny_logon_artifacts(
+        [
+            str(item.get("name") or "")
+            for item in objects
+            if str(item.get("object_type") or "") == "HoneyUser"
+        ]
+    )
+    return _render(
+        request,
+        "policy.html",
+        title="Policy",
+        policy_report=report.to_dict(),
+        deny_logon=deny,
+        playbooks=list_playbooks(),
     )
 
 
