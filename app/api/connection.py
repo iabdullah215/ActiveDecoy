@@ -16,6 +16,8 @@ from app.core.connection_profile import (
     save_session_profile,
 )
 from app.core.connection_service import run_connection_test
+from app.core.directory_service import run_directory_import
+from app.core.graph_store import GraphStore
 
 
 def _parse_bool(value: str | bool | None) -> bool:
@@ -63,6 +65,7 @@ def build_connection_router(
     manager: ConnectionManager,
     settings: Settings,
     require_auth,
+    graph_store: GraphStore | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/connection", tags=["connection"])
 
@@ -223,10 +226,83 @@ def build_connection_router(
     def connection_status(request: Request) -> dict[str, Any]:
         require_auth(request)
         bridge_state = request.session.get("bridge_state", bridge_state_to_dict(manager.get_bridge_state()))
+        directory_summary = request.session.get("directory_summary", {})
         return {
             "bridge_state": bridge_state,
             "checklist": request.session.get("connection_checklist", {}),
             "profile_configured": load_session_profile(request.session, settings).ldap_configured(),
+            "directory_summary": directory_summary,
+        }
+
+    @router.post("/enumerate")
+    def connection_enumerate(
+        request: Request,
+        sync_to_graph: Annotated[str, Form()] = "true",
+        replace: Annotated[str, Form()] = "true",
+    ) -> dict[str, Any]:
+        require_auth(request)
+        if graph_store is None:
+            return {"success": False, "message": "Graph store is unavailable."}
+
+        profile = load_session_profile(request.session, settings)
+        if not profile.ldap_configured():
+            return {
+                "success": False,
+                "message": "Save and validate an LDAP host before importing the directory.",
+            }
+
+        try:
+            result = run_directory_import(
+                profile.to_ldap_config(),
+                settings,
+                graph_store,
+                sync_to_graph=_parse_bool(sync_to_graph),
+                replace=_parse_bool(replace),
+            )
+        except Exception as exc:
+            audit_event(
+                "directory.enumerate",
+                actor=_actor(request),
+                outcome="failure",
+                request=request,
+                error=str(exc),
+            )
+            return {"success": False, "message": str(exc), "summary": {}}
+
+        # Keep a compact summary + preview in session; full snapshot can be large.
+        summary = result.get("summary") or {}
+        request.session["directory_summary"] = summary
+        preview_users = (result.get("snapshot") or {}).get("users", [])[:25]
+        preview_groups = (result.get("snapshot") or {}).get("groups", [])[:25]
+        preview_computers = (result.get("snapshot") or {}).get("computers", [])[:25]
+        request.session["directory_preview"] = {
+            "users": preview_users,
+            "groups": preview_groups,
+            "computers": preview_computers,
+            "trusts": (result.get("snapshot") or {}).get("trusts", [])[:25],
+        }
+
+        audit_event(
+            "directory.enumerate",
+            actor=_actor(request),
+            outcome="success" if result.get("success") else "failure",
+            request=request,
+            synced=bool(result.get("synced")),
+            users=summary.get("users", 0),
+            groups=summary.get("groups", 0),
+            computers=summary.get("computers", 0),
+            trusts=summary.get("trusts", 0),
+        )
+
+        # Do not return the full snapshot over the wire by default — keep UI payload light.
+        return {
+            "success": result.get("success", False),
+            "message": result.get("message", ""),
+            "summary": summary,
+            "synced": result.get("synced", False),
+            "graph_sync": result.get("graph_sync"),
+            "preview": request.session["directory_preview"],
+            "debug": (result.get("snapshot") or {}).get("debug", []),
         }
 
     return router

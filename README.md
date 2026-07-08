@@ -33,6 +33,7 @@ ActiveDecoy/
 - Host OS detection.
 - LDAP validation with structured debug output.
 - Hypervisor session validation for authorized lab bridges.
+- Directory enumeration (users, groups, computers, trusts) with Neo4j import.
 
 ### Visualization
 

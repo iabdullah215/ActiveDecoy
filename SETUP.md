@@ -111,6 +111,20 @@ Required capabilities usually include:
 - Access to collect the event log sources you plan to monitor.
 - Permission to create the lab honey objects you intentionally deploy.
 
+### Directory import (Chunk 3)
+
+After a successful LDAP validation:
+
+1. Open **Connection** and click **Import directory**.
+2. ActiveDecoy enumerates users, groups, computers, memberships, and trusts (paged; capped by `LDAP_MAX_OBJECTS`).
+3. When Neo4j is configured, topology is upserted as `ADUser` / `ADGroup` / `ADComputer` / `ADTrust` / `ADDomain` nodes with `MEMBER_OF` and `IN_DOMAIN` relationships.
+4. Visualization and Home show AD object counts and inventory rows alongside honey objects.
+
+Tune limits in `.env`:
+
+- `LDAP_PAGE_SIZE=200`
+- `LDAP_MAX_OBJECTS=500`
+
 If you are testing honey-user creation or similar workflows, ensure the account has explicit authorization to create directory objects in the chosen OU.
 
 ## 5. Washu Agent Setup

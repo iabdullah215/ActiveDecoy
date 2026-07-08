@@ -138,6 +138,46 @@ document.addEventListener("DOMContentLoaded", () => {
       runTest("/api/connection/retest");
     });
 
+    connectionForm.querySelector('[data-action="enumerate"]')?.addEventListener("click", async () => {
+      const label = document.querySelector("[data-test-label]");
+      if (label) label.innerHTML = '<span class="spinner"></span> Importing…';
+      try {
+        const formData = new FormData();
+        formData.set("sync_to_graph", "true");
+        formData.set("replace", "true");
+        const payload = await postForm("/api/connection/enumerate", formData);
+        const debugEl = document.querySelector("[data-connection-debug]");
+        if (debugEl) {
+          const lines = [
+            payload.message || "",
+            ...(payload.debug || []),
+          ].filter(Boolean);
+          debugEl.textContent = lines.join("\n") || "Directory import finished.";
+        }
+        const summary = payload.summary || {};
+        document.querySelectorAll("[data-dir-stat]").forEach((el) => {
+          const key = el.getAttribute("data-dir-stat");
+          if (key && key in summary) el.textContent = summary[key];
+        });
+        const badge = document.querySelector("[data-directory-badge]");
+        if (badge) {
+          badge.textContent = payload.success ? "Imported" : "Error";
+          badge.className = `badge ${payload.success ? "badge--connected" : "badge--error"}`;
+        }
+        const msg = document.querySelector("[data-directory-message]");
+        if (msg) {
+          msg.textContent = summary.domain
+            ? `Domain: ${summary.domain}`
+            : (payload.message || "Import finished.");
+        }
+      } catch (error) {
+        const debugEl = document.querySelector("[data-connection-debug]");
+        if (debugEl) debugEl.textContent = error.message;
+      } finally {
+        if (label) label.textContent = "Validate connection";
+      }
+    });
+
     connectionForm.querySelector('[data-action="disconnect"]')?.addEventListener("click", async () => {
       const payload = await postForm("/api/connection/disconnect", new FormData());
       updateConnectionUI({ checklist: {}, message: payload.message });

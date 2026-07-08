@@ -37,7 +37,7 @@ from app.core.connection_profile import (
     save_session_profile,
 )
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
-from app.core.graph_store import GraphStore
+from app.core.graph_store import GRAPH_LABELS, GraphStore
 from app.core.logging_config import configure_logging
 from app.core.monitoring_engine import MonitoringEngine
 from app.core.rate_limit import SlidingWindowRateLimiter
@@ -82,7 +82,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="ActiveDecoy", version="0.5.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -168,20 +168,25 @@ def _health_label(ready: bool, configured: bool = True) -> str:
     return "Ready" if ready else "Unavailable"
 
 
-def _graph_rows_for_visualization() -> list[dict[str, Any]]:
+def _graph_rows_for_visualization(*, kind: str = "all") -> tuple[list[dict[str, Any]], str]:
     health = graph_store.health()
     if health.connected:
         try:
-            nodes = graph_store.fetch_honey_nodes()
+            if kind == "ad":
+                nodes = graph_store.fetch_ad_nodes(limit=100)
+            elif kind == "honey":
+                nodes = graph_store.fetch_honey_nodes()
+            else:
+                nodes = graph_store.fetch_nodes(labels=GRAPH_LABELS, limit=150)
             if nodes:
-                return nodes
+                return nodes, "neo4j"
         except Exception:
             pass
-    return deception_engine.summarize_graph_rows(deception_engine.generate_honey_users(2))
+    return deception_engine.summarize_graph_rows(deception_engine.generate_honey_users(2)), "preview"
 
 
 app.include_router(build_graph_router(graph_store, deception_engine, _require_auth_api))
-app.include_router(build_connection_router(connection_manager, settings, _require_auth_api))
+app.include_router(build_connection_router(connection_manager, settings, _require_auth_api, graph_store))
 app.include_router(build_monitoring_router(monitoring_engine, _require_auth_api))
 
 
@@ -288,7 +293,10 @@ def home(request: Request) -> HTMLResponse:
             "graph": _health_label(graph_health.connected, graph_health.configured),
             "deception": "Ready",
             "graph_nodes": graph_health.node_count,
+            "ad_nodes": graph_health.ad_count,
+            "honey_nodes": graph_health.honey_count,
         },
+        directory_summary=request.session.get("directory_summary", {}),
     )
 
 
@@ -304,6 +312,8 @@ def connection_page(request: Request) -> HTMLResponse:
         hypervisor_types=[item.value for item in HypervisorType],
         connection_profile=profile.to_form_dict(),
         connection_retries=settings.connection_retries,
+        directory_summary=request.session.get("directory_summary", {}),
+        graph_connected=graph_store.health().connected,
     )
 
 
@@ -311,13 +321,17 @@ def connection_page(request: Request) -> HTMLResponse:
 def visualization_page(request: Request) -> HTMLResponse:
     _require_auth_page(request)
     graph_health = graph_store.health()
+    graph_rows, graph_source = _graph_rows_for_visualization(kind="all")
     return _render(
         request,
         "visualization.html",
         title="Visualization",
         neodash_url=request.session.get("neodash_url", settings.neodash_url),
-        graph_rows=_graph_rows_for_visualization(),
-        graph_source="neo4j" if graph_health.connected else "preview",
+        graph_rows=graph_rows,
+        graph_source=graph_source,
+        directory_summary=request.session.get("directory_summary", {}),
+        honey_count=graph_health.honey_count,
+        ad_count=graph_health.ad_count,
     )
 
 

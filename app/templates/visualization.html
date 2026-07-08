@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-{% set eyebrow = "Analytics" %}{% set heading = "Visualization" %}{% set lead = "Review NeoDash dashboards and honey-object inventory." %}
+{% set eyebrow = "Analytics" %}{% set heading = "Visualization" %}{% set lead = "Review NeoDash dashboards plus honey and directory inventory from Neo4j." %}
 {% include "partials/page_header.html" %}
 
 <div class="grid-2 grid-2--wide-left">
@@ -17,12 +17,26 @@
 
   <div class="card">
     <div class="card__header">
-      <h2 class="card__title">Honey objects</h2>
+      <h2 class="card__title">Graph inventory</h2>
       <span class="badge {% if graph_source == 'neo4j' %}badge--connected{% else %}badge--pending{% endif %}">
         {% if graph_source == 'neo4j' %}Live{% else %}Preview{% endif %}
       </span>
     </div>
     <div class="card__body card__body--compact">
+      <div class="metrics u-mt" style="margin-top:0;margin-bottom:12px;">
+        <div class="metric">
+          <div class="metric__label">Honey</div>
+          <div class="metric__value">{{ honey_count | default(0) }}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">AD objects</div>
+          <div class="metric__value">{{ ad_count | default(0) }}</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Domain</div>
+          <div class="metric__value" style="font-size:14px;">{{ directory_summary.domain | default('—') }}</div>
+        </div>
+      </div>
       <div class="table-wrap">
         <table class="table">
           <thead>
@@ -41,6 +55,8 @@
               <td>{{ row.object_type }}</td>
               <td>{{ row.color }}</td>
             </tr>
+            {% else %}
+            <tr><td colspan="4">No graph nodes yet. Import the directory or deploy honey objects.</td></tr>
             {% endfor %}
           </tbody>
         </table>

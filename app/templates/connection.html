@@ -82,6 +82,7 @@
           <button type="submit" data-action="test" class="btn btn--primary"><span data-test-label>Validate connection</span></button>
           <button type="button" data-action="save" class="btn btn--secondary">Save</button>
           <button type="button" data-action="retest" class="btn btn--secondary">Re-test</button>
+          <button type="button" data-action="enumerate" class="btn btn--secondary" {% if not graph_connected %}title="Neo4j offline — will enumerate without sync"{% endif %}>Import directory</button>
           <button type="button" data-action="disconnect" class="btn btn--ghost">Clear bridge</button>
         </div>
       </form>
@@ -117,6 +118,38 @@
             <p data-status-bridge-msg class="status-block__msg">{{ bridge_state.message or 'Not connected' }}</p>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Directory import</h2>
+        <span class="badge {% if directory_summary %}badge--connected{% else %}badge--pending{% endif %}" data-directory-badge>
+          {% if directory_summary %}Imported{% else %}Not imported{% endif %}
+        </span>
+      </div>
+      <div class="card__body card__body--compact">
+        <ul class="data-list" data-directory-summary>
+          <li class="data-list__row">
+            <span class="data-list__label">Users</span>
+            <span class="data-list__value" data-dir-stat="users">{{ directory_summary.users | default(0) }}</span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">Groups</span>
+            <span class="data-list__value" data-dir-stat="groups">{{ directory_summary.groups | default(0) }}</span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">Computers</span>
+            <span class="data-list__value" data-dir-stat="computers">{{ directory_summary.computers | default(0) }}</span>
+          </li>
+          <li class="data-list__row">
+            <span class="data-list__label">Trusts</span>
+            <span class="data-list__value" data-dir-stat="trusts">{{ directory_summary.trusts | default(0) }}</span>
+          </li>
+        </ul>
+        <p class="status-block__msg u-mt" data-directory-message>
+          {% if directory_summary.domain %}Domain: {{ directory_summary.domain }}{% else %}Validate LDAP, then import users/groups/computers into Neo4j.{% endif %}
+        </p>
       </div>
     </div>
 

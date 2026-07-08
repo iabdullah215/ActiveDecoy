@@ -67,6 +67,8 @@ class Settings:
     wrapper_command: str
     connection_retries: int
     connection_retry_delay: float
+    ldap_page_size: int
+    ldap_max_objects: int
 
     @property
     def neo4j_configured(self) -> bool:
@@ -119,6 +121,8 @@ def get_settings() -> Settings:
         wrapper_command=_env("HYPERVISOR_WRAPPER_COMMAND", ""),
         connection_retries=int(_env("CONNECTION_RETRIES", "3")),
         connection_retry_delay=float(_env("CONNECTION_RETRY_DELAY", "0.5")),
+        ldap_page_size=int(_env("LDAP_PAGE_SIZE", "200")),
+        ldap_max_objects=int(_env("LDAP_MAX_OBJECTS", "500")),
     )
 
 
@@ -142,6 +146,10 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append("LOGIN_RATE_LIMIT should be >= 1.")
     if settings.login_rate_window_seconds < 1:
         warnings.append("LOGIN_RATE_WINDOW_SECONDS should be >= 1.")
+    if settings.ldap_page_size < 1:
+        warnings.append("LDAP_PAGE_SIZE should be >= 1.")
+    if settings.ldap_max_objects < 1:
+        warnings.append("LDAP_MAX_OBJECTS should be >= 1.")
     if not settings.cors_origins:
         warnings.append("CORS_ORIGINS is empty; browser cross-origin API calls will be blocked.")
     return warnings

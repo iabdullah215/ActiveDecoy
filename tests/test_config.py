@@ -38,6 +38,8 @@ def _settings(**overrides) -> Settings:
         wrapper_command="",
         connection_retries=3,
         connection_retry_delay=0.5,
+        ldap_page_size=200,
+        ldap_max_objects=500,
     )
     base.update(overrides)
     return Settings(**base)

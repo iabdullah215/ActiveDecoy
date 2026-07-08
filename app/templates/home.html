@@ -43,6 +43,12 @@
           <span class="data-list__value {% if health.graph == 'Ready' %}data-list__value--ok{% elif health.graph == 'Not configured' %}data-list__value--muted{% else %}data-list__value--warn{% endif %}">{{ health.graph }}</span>
         </li>
         <li class="data-list__row">
+          <span class="data-list__label">AD import</span>
+          <span class="data-list__value {% if directory_summary.users %}data-list__value--ok{% else %}data-list__value--muted{% endif %}">
+            {% if directory_summary.users %}{{ directory_summary.users }}u / {{ directory_summary.groups }}g / {{ directory_summary.computers }}c{% else %}Not imported{% endif %}
+          </span>
+        </li>
+        <li class="data-list__row">
           <span class="data-list__label">Deception</span>
           <span class="data-list__value data-list__value--ok">{{ health.deception }}</span>
         </li>

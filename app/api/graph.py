@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Form, Request
 
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
-from app.core.graph_store import GraphStore
+from app.core.graph_store import AD_LABELS, GRAPH_LABELS, HONEY_LABELS, GraphStore
 
 
 def build_graph_router(
@@ -26,18 +26,30 @@ def build_graph_router(
             "connected": health.connected,
             "message": health.message,
             "node_count": health.node_count,
+            "honey_count": health.honey_count,
+            "ad_count": health.ad_count,
         }
 
     @router.get("/nodes")
-    def graph_nodes(request: Request) -> dict[str, Any]:
+    def graph_nodes(
+        request: Request,
+        kind: str = "honey",
+        limit: int = 200,
+    ) -> dict[str, Any]:
         require_auth(request)
         health = graph_store.health()
         if not health.connected:
-            return {"source": "deployment", "nodes": [], "health": health.__dict__}
+            return {"source": "offline", "nodes": [], "health": health.__dict__}
 
         try:
-            nodes = graph_store.fetch_honey_nodes()
-            return {"source": "neo4j", "nodes": nodes, "health": health.__dict__}
+            normalized = (kind or "honey").strip().lower()
+            if normalized == "ad":
+                nodes = graph_store.fetch_nodes(labels=AD_LABELS, limit=limit)
+            elif normalized == "all":
+                nodes = graph_store.fetch_nodes(labels=GRAPH_LABELS, limit=limit)
+            else:
+                nodes = graph_store.fetch_nodes(labels=HONEY_LABELS, limit=limit)
+            return {"source": "neo4j", "kind": normalized, "nodes": nodes, "health": health.__dict__}
         except Exception as exc:
             return {"source": "error", "nodes": [], "error": str(exc), "health": health.__dict__}
 
@@ -60,7 +72,10 @@ def build_graph_router(
             return {"success": False, "message": "No deployment in session. Deploy deception first."}
 
         result = graph_store.execute_queries(deployment.get("cypher_queries", []))
-        result["node_count"] = graph_store.health().node_count if result["success"] else 0
+        health = graph_store.health()
+        result["node_count"] = health.node_count if result["success"] else 0
+        result["honey_count"] = health.honey_count if result["success"] else 0
+        result["ad_count"] = health.ad_count if result["success"] else 0
         return result
 
     @router.post("/import-sample")
