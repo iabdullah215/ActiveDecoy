@@ -11,7 +11,9 @@ directory visibility, deception planning, and monitored response.
 2. Establish the directory bridge from the Connection page (save profile, validate with retries, optional auto-test on load).
 3. Click **Import directory** to enumerate AD users/groups/computers/trusts and sync them into Neo4j when configured.
 4. Review graph data in the Visualization page (honey + AD inventory).
-5. Deploy honey-object plans from the Deception page.
+5. Deploy honey-object plans from the Deception page. Optionally dry-run, then
+   provision honey users / bait computers into the configured AD honey OU, and
+   tear them down when the lab exercise ends.
 6. Track telemetry in the Monitoring page: filter the event feed by severity or
    event ID, use "Simulate interaction" to exercise detection against the
    deployed honey objects, and acknowledge honey alerts as you triage them.

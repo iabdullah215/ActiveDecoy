@@ -127,6 +127,31 @@ Tune limits in `.env`:
 
 If you are testing honey-user creation or similar workflows, ensure the account has explicit authorization to create directory objects in the chosen OU.
 
+### AD honey provisioning (Chunk 4)
+
+Provisioning is **off by default**. Enable only in an authorized lab:
+
+1. Create a dedicated OU (example: `OU=Honey,OU=Lab,DC=lab,DC=local`).
+2. Set in `.env`:
+   - `AD_PROVISION_ENABLED=true`
+   - `AD_HONEY_OU=OU=Honey,OU=Lab,DC=lab,DC=local`
+   - `AD_HONEY_NAME_PREFIX=hw_` (required prefix for create/delete safety)
+3. Save/validate LDAP on the Connection page (bind account needs create/delete in that OU).
+4. On **Deception**:
+   - Optionally run **AD preflight**
+   - Prefer **Dry-run** first
+   - Check **Provision in Active Directory** for honey users / bait computers
+   - Use **Teardown last AD deploy** to remove provisioned objects
+
+Safety controls:
+
+- Objects must land under `AD_HONEY_OU`
+- Names must use `AD_HONEY_NAME_PREFIX` when `AD_REQUIRE_NAME_PREFIX=true`
+- Teardown refuses DNs outside the honey OU or without the prefix
+- Deployment history is stored in `data/deployments.json` (gitignored)
+
+Breadcrumbs and Honey DC remain plan/graph-only in this chunk.
+
 ## 5. Washu Agent Setup
 
 The Washu Agent is the monitoring VM used to watch honey-object interaction (not yet shipped in-repo — see Chunk 7).

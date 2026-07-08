@@ -69,6 +69,10 @@ class Settings:
     connection_retry_delay: float
     ldap_page_size: int
     ldap_max_objects: int
+    ad_honey_ou: str
+    ad_honey_name_prefix: str
+    ad_require_name_prefix: bool
+    ad_provision_enabled: bool
 
     @property
     def neo4j_configured(self) -> bool:
@@ -123,6 +127,10 @@ def get_settings() -> Settings:
         connection_retry_delay=float(_env("CONNECTION_RETRY_DELAY", "0.5")),
         ldap_page_size=int(_env("LDAP_PAGE_SIZE", "200")),
         ldap_max_objects=int(_env("LDAP_MAX_OBJECTS", "500")),
+        ad_honey_ou=_env("AD_HONEY_OU", ""),
+        ad_honey_name_prefix=_env("AD_HONEY_NAME_PREFIX", "hw_"),
+        ad_require_name_prefix=_env_bool("AD_REQUIRE_NAME_PREFIX", "true"),
+        ad_provision_enabled=_env_bool("AD_PROVISION_ENABLED", "false"),
     )
 
 
@@ -150,6 +158,8 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append("LDAP_PAGE_SIZE should be >= 1.")
     if settings.ldap_max_objects < 1:
         warnings.append("LDAP_MAX_OBJECTS should be >= 1.")
+    if settings.ad_provision_enabled and not settings.ad_honey_ou:
+        warnings.append("AD_PROVISION_ENABLED is true but AD_HONEY_OU is empty.")
     if not settings.cors_origins:
         warnings.append("CORS_ORIGINS is empty; browser cross-origin API calls will be blocked.")
     return warnings

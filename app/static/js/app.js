@@ -204,15 +204,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (deceptionForm) {
+    const resultEl = document.querySelector("[data-deception-result]");
+    const showResult = (payload) => {
+      if (resultEl) resultEl.textContent = JSON.stringify(payload, null, 2);
+    };
+
     deceptionForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(deceptionForm);
       if (!formData.has("sync_to_graph")) formData.set("sync_to_graph", "false");
+      if (!formData.has("provision_ad")) formData.set("provision_ad", "false");
+      if (!formData.has("dry_run")) formData.set("dry_run", "false");
       const res = await fetch("/api/deception/deploy", { method: "POST", body: formData });
       const payload = await res.json();
-      const out = document.querySelector("[data-deception-result]");
-      if (out) out.textContent = JSON.stringify(payload, null, 2);
+      showResult(payload);
       if (graphPanel) graphPanel.style.outline = "2px solid var(--primary)";
+    });
+
+    document.querySelector('[data-action="preflight"]')?.addEventListener("click", async () => {
+      const res = await fetch("/api/deception/preflight");
+      showResult(await res.json());
+    });
+
+    document.querySelector('[data-action="teardown"]')?.addEventListener("click", async () => {
+      if (!window.confirm("Tear down AD objects from the last Active Directory deployment?")) return;
+      const formData = new FormData();
+      formData.set("dry_run", "false");
+      const res = await fetch("/api/deception/teardown", { method: "POST", body: formData });
+      showResult(await res.json());
     });
   }
 

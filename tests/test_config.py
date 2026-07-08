@@ -40,6 +40,10 @@ def _settings(**overrides) -> Settings:
         connection_retry_delay=0.5,
         ldap_page_size=200,
         ldap_max_objects=500,
+        ad_honey_ou="",
+        ad_honey_name_prefix="hw_",
+        ad_require_name_prefix=True,
+        ad_provision_enabled=False,
     )
     base.update(overrides)
     return Settings(**base)

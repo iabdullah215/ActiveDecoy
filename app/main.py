@@ -37,6 +37,8 @@ from app.core.connection_profile import (
     save_session_profile,
 )
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
+from app.core.deception_service import run_deception_deploy, run_deception_teardown, run_preflight
+from app.core.deployment_history import DeploymentHistoryStore
 from app.core.graph_store import GRAPH_LABELS, GraphStore
 from app.core.logging_config import configure_logging
 from app.core.monitoring_engine import MonitoringEngine
@@ -49,6 +51,7 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 GUIDE_PATH = PROJECT_ROOT / "data" / "user_guide.md"
 SAMPLE_GRAPH_PATH = PROJECT_ROOT / "data" / "sample_graph.cypher"
+HISTORY_PATH = PROJECT_ROOT / "data" / "deployments.json"
 
 settings = get_settings()
 configure_logging(debug=settings.debug)
@@ -60,6 +63,7 @@ connection_manager = ConnectionManager()
 deception_engine = DeceptionEngine(seed=42)
 graph_store = GraphStore(settings)
 monitoring_engine = MonitoringEngine(seed=42)
+deployment_history = DeploymentHistoryStore(HISTORY_PATH)
 login_rate_limiter = SlidingWindowRateLimiter(
     max_attempts=settings.login_rate_limit,
     window_seconds=settings.login_rate_window_seconds,
@@ -82,7 +86,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="ActiveDecoy", version="0.6.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -339,12 +343,18 @@ def visualization_page(request: Request) -> HTMLResponse:
 def deception_page(request: Request) -> HTMLResponse:
     _require_auth_page(request)
     graph_health = graph_store.health()
+    profile = load_session_profile(request.session, settings)
     return _render(
         request,
         "deception.html",
         title="Deception",
         default_modules=["honey_users", "honey_servers", "breadcrumbs"],
         graph_connected=graph_health.connected,
+        ad_provision_enabled=settings.ad_provision_enabled,
+        ad_honey_ou=settings.ad_honey_ou,
+        ad_honey_name_prefix=settings.ad_honey_name_prefix,
+        ldap_ready=bool(profile.ldap_configured()),
+        deployment_history=deployment_history.list_records(limit=8),
     )
 
 
@@ -388,38 +398,124 @@ def api_system_state(request: Request) -> dict[str, Any]:
     return _current_bridge_state(request)
 
 
+def _parse_form_bool(value: str | bool | None) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "yes", "on"}
+
+
 @app.post("/api/deception/deploy")
 def api_deception_deploy(
     request: Request,
     modules: Annotated[list[str] | None, Form()] = None,
     sync_to_graph: Annotated[str, Form()] = "false",
+    provision_ad: Annotated[str, Form()] = "false",
+    dry_run: Annotated[str, Form()] = "false",
 ) -> dict[str, Any]:
     _require_auth_api(request)
     selected = modules or []
-    deployment = deception_engine.build_deployment(selected)
-    payload = deployment_to_dict(deployment)
-    request.session["last_deployment"] = payload
-    payload["monitored_objects"] = monitoring_engine.register_deployment(payload["objects"])
-
-    sync_enabled = str(sync_to_graph).lower() in {"1", "true", "yes", "on"}
-    if sync_enabled:
-        graph_result = graph_store.execute_queries(payload.get("cypher_queries", []))
-        payload["graph_sync"] = graph_result
-        if graph_result["success"]:
-            payload["graph_node_count"] = graph_store.health().node_count
-
     actor = str(request.session.get("username") or "anonymous")
+    profile = load_session_profile(request.session, settings)
+    sync_enabled = _parse_form_bool(sync_to_graph)
+    provision_enabled = _parse_form_bool(provision_ad)
+    dry_run_enabled = _parse_form_bool(dry_run)
+
+    if provision_enabled and not settings.ad_provision_enabled and not dry_run_enabled:
+        return {
+            "success": False,
+            "message": "AD provisioning is disabled. Set AD_PROVISION_ENABLED=true and configure AD_HONEY_OU.",
+        }
+
+    payload = run_deception_deploy(
+        modules=selected,
+        settings=settings,
+        deception_engine=deception_engine,
+        monitoring_engine=monitoring_engine,
+        graph_store=graph_store,
+        history=deployment_history,
+        ldap_config=profile.to_ldap_config() if profile.ldap_configured() else None,
+        actor=actor,
+        sync_to_graph=sync_enabled,
+        provision_ad=provision_enabled,
+        dry_run=dry_run_enabled,
+    )
+    request.session["last_deployment"] = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"cypher_queries"}
+    }
+    # Keep queries too for optional later sync, but cap session size by storing lightly.
+    request.session["last_deployment"]["cypher_queries"] = payload.get("cypher_queries", [])
+    request.session["last_deployment_id"] = payload.get("deployment_id")
+
     audit_event(
         "deception.deploy",
         actor=actor,
-        outcome="success",
+        outcome="success" if payload.get("success") else "failure",
         request=request,
         modules=selected,
         object_count=len(payload.get("objects", [])),
         sync_to_graph=sync_enabled,
+        provision_ad=provision_enabled,
+        dry_run=dry_run_enabled,
+        deployment_id=payload.get("deployment_id"),
         graph_sync_ok=(payload.get("graph_sync") or {}).get("success") if sync_enabled else None,
+        ad_ok=(payload.get("ad_provision") or {}).get("success"),
     )
     return payload
+
+
+@app.get("/api/deception/history")
+def api_deception_history(request: Request, limit: int = 20) -> dict[str, Any]:
+    _require_auth_api(request)
+    return {"deployments": deployment_history.list_records(limit=limit)}
+
+
+@app.get("/api/deception/preflight")
+def api_deception_preflight(request: Request) -> dict[str, Any]:
+    _require_auth_api(request)
+    profile = load_session_profile(request.session, settings)
+    result = run_preflight(
+        settings=settings,
+        ldap_config=profile.to_ldap_config() if profile.ldap_configured() else None,
+    )
+    result["ad_provision_enabled"] = settings.ad_provision_enabled
+    result["ad_honey_ou"] = settings.ad_honey_ou
+    result["ad_honey_name_prefix"] = settings.ad_honey_name_prefix
+    return result
+
+
+@app.post("/api/deception/teardown")
+def api_deception_teardown(
+    request: Request,
+    deployment_id: Annotated[str, Form()] = "",
+    dry_run: Annotated[str, Form()] = "false",
+) -> dict[str, Any]:
+    _require_auth_api(request)
+    actor = str(request.session.get("username") or "anonymous")
+    profile = load_session_profile(request.session, settings)
+    target_id = deployment_id.strip() or str(request.session.get("last_deployment_id") or "")
+    if not target_id:
+        return {"success": False, "message": "deployment_id is required."}
+
+    result = run_deception_teardown(
+        deployment_id=target_id,
+        settings=settings,
+        history=deployment_history,
+        ldap_config=profile.to_ldap_config() if profile.ldap_configured() else None,
+        dry_run=_parse_form_bool(dry_run),
+    )
+    audit_event(
+        "deception.teardown",
+        actor=actor,
+        outcome="success" if result.get("success") else "failure",
+        request=request,
+        deployment_id=target_id,
+        dry_run=_parse_form_bool(dry_run),
+    )
+    return result
 
 
 if __name__ == "__main__":

@@ -44,7 +44,9 @@ ActiveDecoy/
 ### Deception
 
 - Honey-user, honey-server, shadow DC, and breadcrumb planning.
+- Optional **Active Directory provisioning** into a dedicated honey OU (users + bait computers).
 - Cypher generation for Neo4j ingestion.
+- Dry-run preflight, teardown, and on-disk deployment history.
 - Real-time payload preview in the UI.
 
 ### Monitoring

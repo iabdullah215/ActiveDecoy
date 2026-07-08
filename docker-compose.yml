@@ -53,6 +53,10 @@ services:
       CONNECTION_RETRY_DELAY: ${CONNECTION_RETRY_DELAY:-0.5}
       LDAP_PAGE_SIZE: ${LDAP_PAGE_SIZE:-200}
       LDAP_MAX_OBJECTS: ${LDAP_MAX_OBJECTS:-500}
+      AD_PROVISION_ENABLED: ${AD_PROVISION_ENABLED:-false}
+      AD_HONEY_OU: ${AD_HONEY_OU:-}
+      AD_HONEY_NAME_PREFIX: ${AD_HONEY_NAME_PREFIX:-hw_}
+      AD_REQUIRE_NAME_PREFIX: ${AD_REQUIRE_NAME_PREFIX:-true}
     depends_on:
       neo4j:
         condition: service_healthy
