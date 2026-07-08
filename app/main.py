@@ -5,10 +5,11 @@ Administrator credentials are loaded from .env via app.core.config (ADMIN_USERNA
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, AsyncIterator
 
 from fastapi import FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,7 @@ import uvicorn
 from app.api.connection import build_connection_router
 from app.api.graph import build_graph_router
 from app.api.monitoring import build_monitoring_router
-from app.core.config import get_settings
+from app.core.config import get_settings, log_settings_summary
 from app.core.connection_manager import (
     ConnectionManager,
     HypervisorType,
@@ -35,6 +36,7 @@ from app.core.connection_profile import (
 )
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
 from app.core.graph_store import GraphStore
+from app.core.logging_config import configure_logging
 from app.core.monitoring_engine import MonitoringEngine
 
 
@@ -46,10 +48,33 @@ GUIDE_PATH = PROJECT_ROOT / "data" / "user_guide.md"
 SAMPLE_GRAPH_PATH = PROJECT_ROOT / "data" / "sample_graph.cypher"
 
 settings = get_settings()
+configure_logging(debug=settings.debug)
 LOGIN_PATH = "/login"
 HOME_PATH = "/home"
 
-app = FastAPI(title="ActiveDecoy", version="0.3.0")
+logger = logging.getLogger(__name__)
+connection_manager = ConnectionManager()
+deception_engine = DeceptionEngine(seed=42)
+graph_store = GraphStore(settings)
+monitoring_engine = MonitoringEngine(seed=42)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    log_settings_summary(settings)
+    graph_health = graph_store.health()
+    if graph_health.connected:
+        logger.info("Neo4j connected (%s honey nodes).", graph_health.node_count)
+    elif graph_health.configured:
+        logger.warning("Neo4j configured but unreachable: %s", graph_health.message)
+    else:
+        logger.info("Neo4j not configured; deception can still plan in preview mode.")
+    yield
+    graph_store.close()
+    logger.info("ActiveDecoy shutdown complete.")
+
+
+app = FastAPI(title="ActiveDecoy", version="0.3.1", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 app.add_middleware(
     CORSMiddleware,
@@ -61,11 +86,6 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-connection_manager = ConnectionManager()
-deception_engine = DeceptionEngine(seed=42)
-graph_store = GraphStore(settings)
-monitoring_engine = MonitoringEngine(seed=42)
-logger = logging.getLogger(__name__)
 
 
 def _navigation() -> list[dict[str, str]]:
@@ -145,11 +165,6 @@ def _graph_rows_for_visualization() -> list[dict[str, Any]]:
         except Exception:
             pass
     return deception_engine.summarize_graph_rows(deception_engine.generate_honey_users(2))
-
-
-@app.on_event("shutdown")
-def shutdown_graph_store() -> None:
-    graph_store.close()
 
 
 app.include_router(build_graph_router(graph_store, deception_engine, _require_auth_api))

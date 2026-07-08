@@ -2,8 +2,6 @@
 
 ActiveDecoy is an automated ITDR (Identity Threat Detection and Response) framework designed to orchestrate and deploy believable Active Directory honey-objects for proactive lateral movement detection.
 
-## Highlights
-
 ## Security Disclaimer
 
 This project is intended for educational, defensive, and explicitly authorized security testing only. Do not deploy ActiveDecoy against systems or directories you do not own or manage.
@@ -11,7 +9,6 @@ This project is intended for educational, defensive, and explicitly authorized s
 ## Repository Layout
 
 ```text
-
 ActiveDecoy/
 ├── app/
 │   ├── api/
@@ -20,6 +17,10 @@ ActiveDecoy/
 │   └── templates/
 ├── scripts/
 ├── data/
+├── tests/
+├── .github/workflows/
+├── docker-compose.yml
+├── Dockerfile
 ├── README.md
 ├── SETUP.md
 └── requirements.txt
@@ -54,21 +55,34 @@ ActiveDecoy/
 
 ## Quick Start
 
-1. Install dependencies from `requirements.txt`.
-2. Configure Neo4j and directory credentials in `SETUP.md`.
-3. Launch the FastAPI backend with Uvicorn.
-4. Sign in with the test credentials for the local lab build.
+### Option A — Docker Compose (recommended)
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+Open `http://127.0.0.1:8000` and sign in with credentials from `.env`. Details in [SETUP.md](SETUP.md).
+
+### Option B — Local Python
+
+1. Run `./scripts/bootstrap.sh` (creates venv, installs deps, copies `.env`).
+2. Start Neo4j (Desktop or `docker compose up -d neo4j`).
+3. Launch with `./scripts/run.sh --reload` or `python main.py --reload`.
+4. Sign in with the lab admin credentials from `.env`.
 
 ## Development Notes
 
-- The project uses Jinja2 templates and a Tailwind CDN for the dashboard shell.
+- The project uses Jinja2 templates and a custom CSS shell for the dashboard.
 - The backend keeps AD and hypervisor state in the user session during the lab workflow.
+- Startup validates configuration and emits warnings for default secrets / missing Neo4j password.
+- Optional lab connectors (`pyvmomi`, VirtualBox bindings, `pywin32`, `impacket`) are documented in `requirements.txt` and SETUP.md — install only what you need.
 - The code is designed to be extended with real connectors and policy enforcement in your own environment.
 
-## Collaborators:
+## Collaborators
 
 - Muhammad Abdullah
 - Faisal
-- Mahavia 
+- Mahavia
 - Abdullah Saif
 - Abdul Ahad Abbasi

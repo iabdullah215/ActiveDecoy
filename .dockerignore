@@ -1,5 +1,7 @@
 .env
 .venv/
+.git/
+.github/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -8,6 +10,8 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
-.coverage
-htmlcov/
-*.log
+*.md
+!data/user_guide.md
+tests/
+.cursor/
+agent-transcripts/

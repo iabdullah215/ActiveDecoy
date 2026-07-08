@@ -9,7 +9,21 @@ psutil>=6.0.0
 python-dotenv>=1.0.1
 httpx>=0.27.0
 
-# Optional platform-specific dependencies for lab integration.
+# ---------------------------------------------------------------------------
+# Optional platform-specific dependencies (install only what your lab needs)
+# ---------------------------------------------------------------------------
+# VMware / vSphere API bridge (Connection page hypervisor_type=vmware):
+#   pip install "pyvmomi>=8.0.3"
+#
+# VirtualBox Python bindings (must match the installed VirtualBox version):
+#   Install from the VirtualBox SDK / Extension Pack docs for your host OS.
+#
+# Windows event / CLI helpers (Windows hosts only):
+#   pip install "pywin32>=306"
+#
+# Later AD/Offensive-tools-style helpers for authorized lab provisioning (Chunk 4+):
+#   pip install "impacket>=0.12.0"
+#
 # pyvmomi>=8.0.3
 # pywin32>=306
 # impacket>=0.12.0

@@ -1,0 +1,62 @@
+"""Tests for configuration validation helpers."""
+
+from __future__ import annotations
+
+import unittest
+
+from app.core.config import Settings, validate_settings
+
+
+def _settings(**overrides) -> Settings:
+    base = dict(
+        session_secret="active-decoy-development-secret",
+        admin_username="HwatSauce",
+        admin_password="Active-Decoy!2026",
+        neo4j_uri="bolt://localhost:7687",
+        neo4j_username="neo4j",
+        neo4j_password="",
+        neo4j_database="neo4j",
+        neodash_url="https://neodash.graphapp.io",
+        host="127.0.0.1",
+        port=8000,
+        debug=False,
+        ldap_host="dc01.lab.local",
+        ldap_port=389,
+        ldap_use_ssl=False,
+        ldap_bind_dn="",
+        ldap_password="",
+        ldap_base_dn="",
+        hypervisor_type="vmware",
+        hypervisor_endpoint="",
+        hypervisor_username="",
+        hypervisor_password="",
+        hypervisor_vm_name="Washu-DC",
+        wrapper_command="",
+        connection_retries=3,
+        connection_retry_delay=0.5,
+    )
+    base.update(overrides)
+    return Settings(**base)
+
+
+class ConfigValidationTests(unittest.TestCase):
+    def test_warns_on_defaults_and_missing_neo4j(self) -> None:
+        warnings = validate_settings(_settings())
+        self.assertTrue(any("default admin" in item.lower() for item in warnings))
+        self.assertTrue(any("session_secret" in item.lower() for item in warnings))
+        self.assertTrue(any("neo4j" in item.lower() for item in warnings))
+
+    def test_no_warnings_for_hardened_lab_config(self) -> None:
+        warnings = validate_settings(
+            _settings(
+                session_secret="unique-lab-secret-value",
+                admin_username="lab-admin",
+                admin_password="lab-strong-pass!",
+                neo4j_password="neo4j-lab-pass",
+            )
+        )
+        self.assertEqual(warnings, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

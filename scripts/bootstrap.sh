@@ -22,5 +22,10 @@ fi
 python -c "from app.main import app; print('ActiveDecoy imports OK')"
 
 echo ""
-echo "Bootstrap complete. Start the app with:"
+echo "Bootstrap complete."
+echo ""
+echo "Local Python:"
 echo "  source .venv/bin/activate && python main.py --reload"
+echo ""
+echo "Or Docker Compose (app + Neo4j):"
+echo "  docker compose up --build -d"
