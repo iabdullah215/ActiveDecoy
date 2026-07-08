@@ -51,12 +51,19 @@ class AuditTests(unittest.TestCase):
                 records.append(record.getMessage())
 
         logger = logging.getLogger(AUDIT_LOGGER_NAME)
+        previous_level = logger.level
+        previous_propagate = logger.propagate
         handler = _Capture()
+        handler.setLevel(logging.INFO)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
         logger.addHandler(handler)
         try:
             audit_event("unit.test", actor="tester", outcome="success", detail="ok")
         finally:
             logger.removeHandler(handler)
+            logger.setLevel(previous_level)
+            logger.propagate = previous_propagate
 
         self.assertEqual(len(records), 1)
         payload = json.loads(records[0])

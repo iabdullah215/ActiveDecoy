@@ -5,6 +5,7 @@
 | `bootstrap.sh` | Create venv, install deps, copy `.env.example` → `.env` |
 | `run.sh` | Start the FastAPI app via `main.py` |
 | `import_sample_graph.py` | Load `data/sample_graph.cypher` into Neo4j |
+| `forward_sample_events.py` | POST sample security events to `/api/monitoring/ingest` |
 
 ## Docker
 

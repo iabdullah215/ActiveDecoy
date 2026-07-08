@@ -13,3 +13,5 @@ htmlcov/
 *.log
 data/deployments.json
 data/deployments.tmp
+data/monitoring_events.json
+data/monitoring_events.tmp

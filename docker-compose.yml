@@ -57,6 +57,7 @@ services:
       AD_HONEY_OU: ${AD_HONEY_OU:-}
       AD_HONEY_NAME_PREFIX: ${AD_HONEY_NAME_PREFIX:-hw_}
       AD_REQUIRE_NAME_PREFIX: ${AD_REQUIRE_NAME_PREFIX:-true}
+      AGENT_INGEST_TOKEN: ${AGENT_INGEST_TOKEN:-}
     depends_on:
       neo4j:
         condition: service_healthy

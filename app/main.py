@@ -52,6 +52,7 @@ STATIC_DIR = BASE_DIR / "static"
 GUIDE_PATH = PROJECT_ROOT / "data" / "user_guide.md"
 SAMPLE_GRAPH_PATH = PROJECT_ROOT / "data" / "sample_graph.cypher"
 HISTORY_PATH = PROJECT_ROOT / "data" / "deployments.json"
+MONITORING_STORE_PATH = PROJECT_ROOT / "data" / "monitoring_events.json"
 
 settings = get_settings()
 configure_logging(debug=settings.debug)
@@ -62,7 +63,7 @@ logger = logging.getLogger(__name__)
 connection_manager = ConnectionManager()
 deception_engine = DeceptionEngine(seed=42)
 graph_store = GraphStore(settings)
-monitoring_engine = MonitoringEngine(seed=42)
+monitoring_engine = MonitoringEngine(seed=42, store_path=MONITORING_STORE_PATH)
 deployment_history = DeploymentHistoryStore(HISTORY_PATH)
 login_rate_limiter = SlidingWindowRateLimiter(
     max_attempts=settings.login_rate_limit,
@@ -86,7 +87,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.7.0", lifespan=lifespan)
+app = FastAPI(title="ActiveDecoy", version="0.8.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -191,7 +192,7 @@ def _graph_rows_for_visualization(*, kind: str = "all") -> tuple[list[dict[str, 
 
 app.include_router(build_graph_router(graph_store, deception_engine, _require_auth_api))
 app.include_router(build_connection_router(connection_manager, settings, _require_auth_api, graph_store))
-app.include_router(build_monitoring_router(monitoring_engine, _require_auth_api))
+app.include_router(build_monitoring_router(monitoring_engine, _require_auth_api, settings))
 
 
 @app.get("/", include_in_schema=False)

@@ -24,6 +24,7 @@ def _settings(**overrides) -> Settings:
         cors_origins=("http://127.0.0.1:8000", "http://localhost:8000"),
         login_rate_limit=5,
         login_rate_window_seconds=60,
+        agent_ingest_token="",
         ldap_host="dc01.lab.local",
         ldap_port=389,
         ldap_use_ssl=False,
@@ -63,6 +64,7 @@ class ConfigValidationTests(unittest.TestCase):
                 admin_username="lab-admin",
                 admin_password="lab-strong-pass!",
                 neo4j_password="neo4j-lab-pass",
+                agent_ingest_token="lab-ingest-token",
             )
         )
         self.assertEqual(warnings, [])

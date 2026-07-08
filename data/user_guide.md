@@ -16,8 +16,9 @@ directory visibility, deception planning, and monitored response.
    provision honey users / bait computers into the configured AD honey OU, and
    tear them down when the lab exercise ends.
 6. Track telemetry in the Monitoring page: filter the event feed by severity or
-   event ID, use "Simulate interaction" to exercise detection against the
-   deployed honey objects, and acknowledge honey alerts as you triage them.
+   event ID, enable live SSE streaming, use "Simulate interaction" or agent
+   ingest (`POST /api/monitoring/ingest`) for real forwarded events, and
+   acknowledge honey alerts as you triage them.
 
 ## Safety Notes
 

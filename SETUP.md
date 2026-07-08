@@ -132,6 +132,38 @@ Tune limits in `.env`:
 - API: `GET /api/graph/topology` returns nodes + edges (Neo4j when connected, session/preview otherwise).
 - NeoDash iframe remains optional/secondary.
 
+### Telemetry ingest (Chunk 6)
+
+1. Set a strong `AGENT_INGEST_TOKEN` in `.env` (ingest stays disabled while empty).
+2. Deploy honey objects so correlation has names/SPNs to match.
+3. Forward events to `POST /api/monitoring/ingest` with header `X-Agent-Token: <token>`:
+
+```json
+{
+  "agent_id": "washu-agent",
+  "events": [
+    {
+      "event_id": 4768,
+      "actor": "WKS-031",
+      "target": "hw_alex.hale",
+      "severity": "info",
+      "source": "Domain Controller",
+      "description": "TGT requested"
+    }
+  ]
+}
+```
+
+4. Open Monitoring with **Live stream (SSE)** enabled, or poll `/api/monitoring/events`.
+5. Sample forwarder:
+
+```bash
+export AGENT_INGEST_TOKEN=your-token
+python scripts/forward_sample_events.py --honey-user hw_alex.hale
+```
+
+Events persist in `data/monitoring_events.json` (gitignored).
+
 If you are testing honey-user creation or similar workflows, ensure the account has explicit authorization to create directory objects in the chosen OU.
 
 ### AD honey provisioning (Chunk 4)

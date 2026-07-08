@@ -7,7 +7,7 @@
   <div class="metric">
     <div class="metric__label">Events collected</div>
     <div class="metric__value" data-mon-stat="total_events">{{ monitoring_stats.total_events }}</div>
-    <div class="metric__hint">Rolling in-memory feed</div>
+    <div class="metric__hint">Persisted feed</div>
   </div>
   <div class="metric">
     <div class="metric__label">Honey triggers</div>
@@ -20,9 +20,9 @@
     <div class="metric__hint">Honey alerts awaiting triage</div>
   </div>
   <div class="metric">
-    <div class="metric__label">Monitored objects</div>
-    <div class="metric__value" data-mon-stat="registered_honey_objects">{{ monitoring_stats.registered_honey_objects }}</div>
-    <div class="metric__hint">From the last deployment</div>
+    <div class="metric__label">Ingested</div>
+    <div class="metric__value" data-mon-stat="ingested_events">{{ monitoring_stats.ingested_events | default(0) }}</div>
+    <div class="metric__hint">Agent / SIEM events</div>
   </div>
 </div>
 
@@ -54,6 +54,10 @@
         <label class="checkbox">
           <input type="checkbox" name="auto_refresh" value="true" checked />
           Auto-refresh
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="live_stream" value="true" checked />
+          Live stream (SSE)
         </label>
       </form>
 

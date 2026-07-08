@@ -28,7 +28,7 @@ HONEY_OBJECTS = [
 
 class MonitoringEngineTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.engine = MonitoringEngine(seed=7)
+        self.engine = MonitoringEngine(seed=7, seed_baseline=True)
 
     def test_baseline_events_seeded(self) -> None:
         events = self.engine.list_events(limit=100)

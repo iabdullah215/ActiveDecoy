@@ -240,6 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const messageEl = document.querySelector("[data-monitoring-message]");
     const feedState = document.querySelector("[data-mon-feed-state]");
     let refreshTimer = null;
+    let eventSource = null;
 
     const severityBadge = (severity) => {
       const map = {
@@ -318,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const payload = await res.json();
         renderEvents(payload.events || []);
         updateStats(payload.stats);
-        if (feedState) {
+        if (feedState && !(eventSource && eventSource.readyState === 1)) {
           feedState.textContent = "Live";
           feedState.className = "badge badge--connected";
         }
@@ -331,16 +332,47 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
+    const stopStream = () => {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+    };
+
+    const startStream = () => {
+      stopStream();
+      const enabled = filters?.querySelector('[name="live_stream"]')?.checked;
+      if (!enabled || typeof EventSource === "undefined") return;
+      eventSource = new EventSource("/api/monitoring/stream");
+      eventSource.addEventListener("ready", () => {
+        if (feedState) {
+          feedState.textContent = "Streaming";
+          feedState.className = "badge badge--connected";
+        }
+      });
+      eventSource.addEventListener("monitoring", () => {
+        loadEvents();
+      });
+      eventSource.onerror = () => {
+        if (feedState) {
+          feedState.textContent = "Reconnecting";
+          feedState.className = "badge badge--pending";
+        }
+      };
+    };
+
     const scheduleRefresh = () => {
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = null;
       const enabled = filters?.querySelector('[name="auto_refresh"]')?.checked;
-      if (enabled) refreshTimer = setInterval(loadEvents, 8000);
+      const streaming = filters?.querySelector('[name="live_stream"]')?.checked;
+      if (enabled && !streaming) refreshTimer = setInterval(loadEvents, 8000);
     };
 
     filters?.addEventListener("change", () => {
       loadEvents();
       scheduleRefresh();
+      startStream();
     });
 
     monitoringTable.addEventListener("click", async (e) => {
@@ -379,6 +411,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     loadEvents();
     scheduleRefresh();
+    startStream();
   }
 
   const vizFilters = document.querySelector("[data-viz-filters]");

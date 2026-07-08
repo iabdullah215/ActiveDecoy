@@ -53,6 +53,7 @@ class Settings:
     cors_origins: tuple[str, ...]
     login_rate_limit: int
     login_rate_window_seconds: int
+    agent_ingest_token: str
     ldap_host: str
     ldap_port: int
     ldap_use_ssl: bool
@@ -111,6 +112,7 @@ def get_settings() -> Settings:
         cors_origins=tuple(parse_cors_origins(_env("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS))),
         login_rate_limit=int(_env("LOGIN_RATE_LIMIT", "5")),
         login_rate_window_seconds=int(_env("LOGIN_RATE_WINDOW_SECONDS", "60")),
+        agent_ingest_token=_env("AGENT_INGEST_TOKEN", ""),
         ldap_host=_env("LDAP_HOST", "dc01.lab.local"),
         ldap_port=int(_env("LDAP_PORT", "389")),
         ldap_use_ssl=_env_bool("LDAP_USE_SSL", "false"),
@@ -160,6 +162,8 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append("LDAP_MAX_OBJECTS should be >= 1.")
     if settings.ad_provision_enabled and not settings.ad_honey_ou:
         warnings.append("AD_PROVISION_ENABLED is true but AD_HONEY_OU is empty.")
+    if not settings.agent_ingest_token:
+        warnings.append("AGENT_INGEST_TOKEN is empty; agent telemetry ingest stays disabled.")
     if not settings.cors_origins:
         warnings.append("CORS_ORIGINS is empty; browser cross-origin API calls will be blocked.")
     return warnings
