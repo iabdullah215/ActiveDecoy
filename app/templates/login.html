@@ -39,6 +39,12 @@
         </div>
         <button type="submit" class="btn btn--primary">Sign in</button>
       </form>
+
+      {% if forgot_password_enabled %}
+      <p class="login-card__link">
+        <a href="/forgot-password">Forgot password?</a>
+      </p>
+      {% endif %}
     </div>
 
     <p class="login-foot">Authorized security research and lab use only.</p>

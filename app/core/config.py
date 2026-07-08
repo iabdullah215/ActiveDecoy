@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 import logging
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -13,8 +15,44 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 logger = logging.getLogger(__name__)
 
+
+def _running_unit_tests() -> bool:
+    if os.getenv("TEST_USE_ENV") == "1":
+        return False
+    if "unittest" in sys.modules:
+        return True
+    for frame in inspect.stack()[1:10]:
+        if "unittest" in (frame.filename or ""):
+            return True
+    return False
+
+
+def _bootstrap_unittest_env() -> None:
+    """Override .env with lab defaults during `unittest` runs (see tests/README.md)."""
+
+    if not _running_unit_tests():
+        return
+    os.environ.update(
+        {
+            "APP_ENV": "development",
+            "APP_DEBUG": "false",
+            "ENFORCE_SECURE_DEFAULTS": "false",
+            "ADMIN_USERNAME": "HwatSauce",
+            "ADMIN_PASSWORD": "Active-Decoy!2026",
+            "SESSION_SECRET": "active-decoy-development-secret",
+            "AGENT_INGEST_TOKEN": "",
+            "CONSOLE_AUTH_MODE": "env",
+            "SESSION_HTTPS_ONLY": "false",
+            "SESSION_SAME_SITE": "lax",
+            "AD_PROVISION_ENABLED": "false",
+        }
+    )
+
+
 # Load secrets and service config from the project root .env (never commit .env).
-load_dotenv(PROJECT_ROOT / ".env")
+# override=True so a local .env wins over stale shell exports during development.
+load_dotenv(PROJECT_ROOT / ".env", override=True)
+_bootstrap_unittest_env()
 
 _DEFAULT_SESSION_SECRET = "active-decoy-development-secret"
 _DEFAULT_ADMIN_USERNAME = "HwatSauce"
@@ -45,6 +83,7 @@ class Settings:
     session_secret: str
     admin_username: str
     admin_password: str
+    admin_email: str
     app_env: str
     neo4j_uri: str
     neo4j_username: str
@@ -89,6 +128,15 @@ class Settings:
     ad_monitored_domains: str
     ad_harden_on_provision: bool
     ad_honey_workstations_lock: str
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_password: str
+    smtp_from: str
+    smtp_use_tls: bool
+    smtp_dev_log: bool
+    password_reset_ttl_seconds: int
+    console_public_url: str
 
     @property
     def is_production(self) -> bool:
@@ -122,6 +170,7 @@ def get_settings() -> Settings:
         session_secret=_env("SESSION_SECRET", _DEFAULT_SESSION_SECRET),
         admin_username=_env("ADMIN_USERNAME", _DEFAULT_ADMIN_USERNAME),
         admin_password=_env("ADMIN_PASSWORD", _DEFAULT_ADMIN_PASSWORD),
+        admin_email=_env("ADMIN_EMAIL", ""),
         app_env=app_env,
         neo4j_uri=_env("NEO4J_URI", "bolt://localhost:7687"),
         neo4j_username=_env("NEO4J_USERNAME", "neo4j"),
@@ -166,6 +215,15 @@ def get_settings() -> Settings:
         ad_monitored_domains=_env("AD_MONITORED_DOMAINS", ""),
         ad_harden_on_provision=_env_bool("AD_HARDEN_ON_PROVISION", "true" if production else "false"),
         ad_honey_workstations_lock=_env("AD_HONEY_WORKSTATIONS_LOCK", "NONEXISTENT-AD-LOCK"),
+        smtp_host=_env("SMTP_HOST", ""),
+        smtp_port=int(_env("SMTP_PORT", "587")),
+        smtp_user=_env("SMTP_USER", ""),
+        smtp_password=_env("SMTP_PASSWORD", ""),
+        smtp_from=_env("SMTP_FROM", ""),
+        smtp_use_tls=_env_bool("SMTP_USE_TLS", "true"),
+        smtp_dev_log=_env_bool("SMTP_DEV_LOG", "true" if not production else "false"),
+        password_reset_ttl_seconds=int(_env("PASSWORD_RESET_TTL_SECONDS", "3600")),
+        console_public_url=_env("CONSOLE_PUBLIC_URL", ""),
     )
 
 
@@ -207,6 +265,10 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append("AGENT_INGEST_TOKEN is empty in production; telemetry ingest is disabled.")
     if "ldap" in settings.console_auth_mode and not settings.console_ldap_domain:
         warnings.append("CONSOLE_LDAP_DOMAIN is empty; LDAP login expects user@domain UPN format.")
+    if "env" in settings.console_auth_mode and not settings.admin_email:
+        warnings.append("ADMIN_EMAIL is empty; forgot-password recovery is disabled.")
+    if settings.admin_email and not settings.smtp_host and not settings.smtp_dev_log:
+        warnings.append("SMTP_HOST is empty; password reset emails cannot be delivered.")
     return warnings
 
 

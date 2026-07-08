@@ -10,6 +10,7 @@ from typing import Any
 
 from app.core.config import Settings
 from app.core.connection_manager import LDAPConfig
+from app.core.console_credentials import verify_env_admin_password
 
 
 logger = logging.getLogger(__name__)
@@ -90,8 +91,8 @@ def authenticate_console(username: str, password: str, settings: Settings) -> Co
     normalized_user = username.strip()
 
     if "env" in modes:
-        if secrets.compare_digest(normalized_user, settings.admin_username) and secrets.compare_digest(
-            password, settings.admin_password
+        if secrets.compare_digest(normalized_user, settings.admin_username) and verify_env_admin_password(
+            password, settings
         ):
             return ConsoleAuthResult(ok=True, actor=settings.admin_username, method="env")
 

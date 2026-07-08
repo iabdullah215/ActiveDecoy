@@ -47,6 +47,12 @@ from app.core.graph_store import GRAPH_LABELS, GraphStore
 from app.core.logging_config import configure_logging
 from app.core.monitoring_engine import MonitoringEngine
 from app.core.playbooks import list_playbooks
+from app.core.password_reset import (
+    complete_password_reset,
+    password_reset_enabled,
+    request_password_reset,
+    verify_reset_token,
+)
 from app.core.policy import PolicyEngine
 from app.core.rate_limit import SlidingWindowRateLimiter
 from app.middleware.security import SecurityHeadersMiddleware
@@ -66,6 +72,8 @@ AGENT_REGISTRY_PATH = PROJECT_ROOT / "data" / "agents.json"
 settings = get_settings()
 configure_logging(debug=settings.debug)
 LOGIN_PATH = "/login"
+FORGOT_PASSWORD_PATH = "/forgot-password"
+RESET_PASSWORD_PATH = "/reset-password"
 HOME_PATH = "/home"
 
 logger = logging.getLogger(__name__)
@@ -79,6 +87,10 @@ agent_registry = AgentRegistry(
 )
 deployment_history = DeploymentHistoryStore(HISTORY_PATH)
 login_rate_limiter = SlidingWindowRateLimiter(
+    max_attempts=settings.login_rate_limit,
+    window_seconds=settings.login_rate_window_seconds,
+)
+forgot_password_rate_limiter = SlidingWindowRateLimiter(
     max_attempts=settings.login_rate_limit,
     window_seconds=settings.login_rate_window_seconds,
 )
@@ -216,6 +228,12 @@ def _normalize_credential(value: str) -> str:
     return re.sub(r"\s+", "", value).strip()
 
 
+def _public_base_url(request: Request) -> str:
+    if settings.console_public_url.strip():
+        return settings.console_public_url.strip().rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
 def _health_label(ready: bool, configured: bool = True) -> str:
     if not configured:
         return "Not configured"
@@ -270,6 +288,7 @@ def login_page(request: Request) -> HTMLResponse:
         title="Login",
         error=None,
         auth_mode=settings.console_auth_mode,
+        forgot_password_enabled=password_reset_enabled(settings),
     )
 
 
@@ -300,6 +319,7 @@ def login_submit(
             title="Login",
             error=f"Too many login attempts. Try again in {limit.retry_after}s.",
             auth_mode=settings.console_auth_mode,
+            forgot_password_enabled=password_reset_enabled(settings),
         )
         response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
         response.headers["Retry-After"] = str(limit.retry_after)
@@ -348,6 +368,149 @@ def login_submit(
         title="Login",
         error=auth.message or "Invalid credentials.",
         auth_mode=settings.console_auth_mode,
+        forgot_password_enabled=password_reset_enabled(settings),
+    )
+
+
+@app.get(FORGOT_PASSWORD_PATH, response_class=HTMLResponse)
+def forgot_password_page(request: Request) -> HTMLResponse:
+    if _authenticated(request):
+        return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
+    return _render(
+        request,
+        "forgot_password.html",
+        title="Forgot password",
+        error=None,
+        success=None,
+        enabled=password_reset_enabled(settings),
+        auth_mode=settings.console_auth_mode,
+    )
+
+
+@app.post(FORGOT_PASSWORD_PATH)
+def forgot_password_submit(
+    request: Request,
+    email: Annotated[str, Form()],
+) -> HTMLResponse:
+    if _authenticated(request):
+        return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
+
+    ip = client_ip(request)
+    limit = forgot_password_rate_limiter.check(f"forgot:{ip}")
+    if not limit.allowed:
+        response = _render(
+            request,
+            "forgot_password.html",
+            title="Forgot password",
+            error=f"Too many requests. Try again in {limit.retry_after}s.",
+            success=None,
+            enabled=password_reset_enabled(settings),
+            auth_mode=settings.console_auth_mode,
+        )
+        response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
+        response.headers["Retry-After"] = str(limit.retry_after)
+        return response
+
+    forgot_password_rate_limiter.hit(f"forgot:{ip}")
+    normalized_email = email.strip().lower()
+
+    if password_reset_enabled(settings):
+        sent, detail = request_password_reset(
+            settings,
+            email=normalized_email,
+            base_url=_public_base_url(request),
+        )
+        audit_event(
+            "password_reset.request",
+            actor=normalized_email or "anonymous",
+            outcome="success" if sent else "skipped",
+            request=request,
+            detail=detail,
+        )
+    else:
+        audit_event(
+            "password_reset.request",
+            actor=normalized_email or "anonymous",
+            outcome="disabled",
+            request=request,
+        )
+
+    return _render(
+        request,
+        "forgot_password.html",
+        title="Forgot password",
+        error=None,
+        success=(
+            "If an account exists for that email address, we sent instructions to reset your password."
+        ),
+        enabled=password_reset_enabled(settings),
+        auth_mode=settings.console_auth_mode,
+    )
+
+
+@app.get(RESET_PASSWORD_PATH, response_class=HTMLResponse)
+def reset_password_page(request: Request, token: str = "") -> HTMLResponse:
+    if _authenticated(request):
+        return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
+    token_valid = bool(token and verify_reset_token(settings, token))
+    return _render(
+        request,
+        "reset_password.html",
+        title="Reset password",
+        token=token if token_valid else "",
+        error=None,
+        success=None,
+        enabled=password_reset_enabled(settings),
+    )
+
+
+@app.post(RESET_PASSWORD_PATH)
+def reset_password_submit(
+    request: Request,
+    token: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    password_confirm: Annotated[str, Form()],
+) -> HTMLResponse:
+    if _authenticated(request):
+        return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
+
+    if password != password_confirm:
+        return _render(
+            request,
+            "reset_password.html",
+            title="Reset password",
+            token=token,
+            error="Passwords do not match.",
+            success=None,
+            enabled=password_reset_enabled(settings),
+        )
+
+    ok, message = complete_password_reset(settings, token=token, new_password=password)
+    audit_event(
+        "password_reset.complete",
+        actor="anonymous",
+        outcome="success" if ok else "failure",
+        request=request,
+    )
+    if ok:
+        return _render(
+            request,
+            "reset_password.html",
+            title="Reset password",
+            token="",
+            error=None,
+            success=message,
+            enabled=password_reset_enabled(settings),
+        )
+
+    return _render(
+        request,
+        "reset_password.html",
+        title="Reset password",
+        token=token,
+        error=message,
+        success=None,
+        enabled=password_reset_enabled(settings),
     )
 
 

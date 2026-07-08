@@ -798,6 +798,27 @@ a:hover { color: var(--primary-hover); }
   border-radius: var(--radius);
 }
 
+.login-alert--success {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.login-card__link {
+  margin: 20px 0 0;
+  text-align: center;
+  font-size: 13px;
+}
+
+.login-card__link a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.login-card__link a:hover {
+  text-decoration: underline;
+}
+
 .login-form .field + .field { margin-top: 16px; }
 
 .login-form .btn { width: 100%; margin-top: 20px; height: 42px; }

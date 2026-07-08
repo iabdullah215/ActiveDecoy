@@ -17,3 +17,4 @@ data/monitoring_events.json
 data/monitoring_events.tmp
 data/agents.json
 data/agents.json.tmp
+data/admin_password.json

@@ -7,6 +7,10 @@ Run locally:
 python -m unittest discover -s tests -v
 ```
 
+Unit tests override `.env` with lab defaults automatically. Set `TEST_USE_ENV=1` to use your real `.env` instead.
+
+| `test_password_reset.py` | Forgot-password flow, tokens, email |
+
 ## Layout
 
 | Module | Focus |

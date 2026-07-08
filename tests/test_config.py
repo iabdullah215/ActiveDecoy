@@ -12,6 +12,7 @@ def _settings(**overrides) -> Settings:
         session_secret="active-decoy-development-secret",
         admin_username="HwatSauce",
         admin_password="Active-Decoy!2026",
+        admin_email="",
         app_env="development",
         neo4j_uri="bolt://localhost:7687",
         neo4j_username="neo4j",
@@ -56,12 +57,27 @@ def _settings(**overrides) -> Settings:
         ad_monitored_domains="",
         ad_harden_on_provision=False,
         ad_honey_workstations_lock="NONEXISTENT-AD-LOCK",
+        smtp_host="",
+        smtp_port=587,
+        smtp_user="",
+        smtp_password="",
+        smtp_from="",
+        smtp_use_tls=True,
+        smtp_dev_log=False,
+        password_reset_ttl_seconds=3600,
+        console_public_url="",
     )
     base.update(overrides)
     return Settings(**base)
 
 
 class ConfigValidationTests(unittest.TestCase):
+    def test_get_settings_uses_lab_defaults_under_unittest(self) -> None:
+        from app.core.config import get_settings
+
+        self.assertEqual(get_settings().admin_username, "HwatSauce")
+        self.assertEqual(get_settings().app_env, "development")
+
     def test_warns_on_defaults_and_missing_neo4j(self) -> None:
         warnings = validate_settings(_settings())
         self.assertTrue(any("default admin" in item.lower() for item in warnings))
@@ -74,8 +90,10 @@ class ConfigValidationTests(unittest.TestCase):
                 session_secret="unique-lab-secret-value",
                 admin_username="lab-admin",
                 admin_password="lab-strong-pass!",
+                admin_email="lab-admin@lab.local",
                 neo4j_password="neo4j-lab-pass",
                 agent_ingest_token="lab-ingest-token",
+                smtp_host="smtp.lab.local",
             )
         )
         self.assertEqual(warnings, [])
