@@ -37,9 +37,10 @@ ActiveDecoy/
 
 ### Visualization
 
-- NeoDash embedding for graph dashboards.
-- Color-coded node presentation for normal and honey objects.
-- Filtered graph previews for usernames, roles, and active state.
+- Native interactive topology canvas (nodes + relationships) backed by Neo4j.
+- Filters for scope (all/honey/AD), name/type, role, and active/honey markers.
+- Inventory table synced with the canvas.
+- Optional NeoDash embed for external dashboards.
 
 ### Deception
 

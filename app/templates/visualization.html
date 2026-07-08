@@ -1,65 +1,122 @@
 {% extends "base.html" %}
 {% block content %}
-{% set eyebrow = "Analytics" %}{% set heading = "Visualization" %}{% set lead = "Review NeoDash dashboards plus honey and directory inventory from Neo4j." %}
+{% set eyebrow = "Analytics" %}{% set heading = "Visualization" %}{% set lead = "Interactive Neo4j topology with filters for honey and directory objects." %}
 {% include "partials/page_header.html" %}
+
+<div class="card u-mb">
+  <div class="card__header">
+    <h2 class="card__title">Graph filters</h2>
+    <span class="badge {% if graph_source == 'neo4j' %}badge--connected{% else %}badge--pending{% endif %}" data-viz-source>
+      {% if graph_source == 'neo4j' %}Live{% else %}Preview{% endif %}
+    </span>
+  </div>
+  <div class="card__body">
+    <form class="form-grid" data-viz-filters>
+      <div class="field">
+        <label class="label" for="viz_kind">Scope</label>
+        <select class="select" id="viz_kind" name="kind">
+          <option value="all" selected>All</option>
+          <option value="honey">Honey only</option>
+          <option value="ad">AD only</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="label" for="viz_q">Name / type</label>
+        <input class="input" id="viz_q" name="q" placeholder="Filter by name…" />
+      </div>
+      <div class="field">
+        <label class="label" for="viz_role">Role</label>
+        <input class="input" id="viz_role" name="role" placeholder="Filter by role…" />
+      </div>
+      <div class="field col-full" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+        <label class="checkbox"><input type="checkbox" name="active_only" value="true" /> Active only</label>
+        <label class="checkbox"><input type="checkbox" name="honey_only" value="true" /> Honey marker only</label>
+        <button type="button" class="btn btn--secondary btn--xs" data-action="viz-refresh">Refresh</button>
+      </div>
+    </form>
+    <div class="metrics" style="margin-top:16px;">
+      <div class="metric">
+        <div class="metric__label">Nodes</div>
+        <div class="metric__value" data-viz-stat="nodes">{{ graph_rows | length }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric__label">Edges</div>
+        <div class="metric__value" data-viz-stat="edges">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric__label">Honey</div>
+        <div class="metric__value" data-viz-stat="honey">{{ honey_count | default(0) }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric__label">AD</div>
+        <div class="metric__value" data-viz-stat="ad">{{ ad_count | default(0) }}</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="grid-2 grid-2--wide-left">
   <div class="card">
     <div class="card__header">
-      <h2 class="card__title">NeoDash</h2>
+      <h2 class="card__title">Interactive topology</h2>
+      <span class="badge badge--pending" data-viz-state>Loading</span>
     </div>
     <div class="card__body card__body--compact">
-      <div data-graph-panel class="embed-frame">
-        <iframe src="{{ neodash_url }}" title="NeoDash dashboard"></iframe>
+      <div class="graph-canvas-wrap" data-graph-panel>
+        <canvas data-graph-canvas width="900" height="520" aria-label="ActiveDecoy topology graph"></canvas>
+        <div class="graph-legend">
+          <span><i class="swatch swatch--honey"></i> Honey</span>
+          <span><i class="swatch swatch--ad"></i> Directory</span>
+          <span><i class="swatch swatch--trust"></i> Trust</span>
+        </div>
       </div>
+      <p class="status-block__msg u-mt" data-viz-message>Drag nodes · scroll wheel zooms · click a node for details.</p>
+      <p class="status-block__msg" data-viz-selection>No node selected.</p>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card__header">
-      <h2 class="card__title">Graph inventory</h2>
-      <span class="badge {% if graph_source == 'neo4j' %}badge--connected{% else %}badge--pending{% endif %}">
-        {% if graph_source == 'neo4j' %}Live{% else %}Preview{% endif %}
-      </span>
-    </div>
-    <div class="card__body card__body--compact">
-      <div class="metrics u-mt" style="margin-top:0;margin-bottom:12px;">
-        <div class="metric">
-          <div class="metric__label">Honey</div>
-          <div class="metric__value">{{ honey_count | default(0) }}</div>
-        </div>
-        <div class="metric">
-          <div class="metric__label">AD objects</div>
-          <div class="metric__value">{{ ad_count | default(0) }}</div>
-        </div>
-        <div class="metric">
-          <div class="metric__label">Domain</div>
-          <div class="metric__value" style="font-size:14px;">{{ directory_summary.domain | default('—') }}</div>
+  <div class="grid-stack">
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Inventory</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Type</th>
+                <th>Marker</th>
+              </tr>
+            </thead>
+            <tbody data-viz-table>
+              {% for row in graph_rows %}
+              <tr>
+                <td title="{{ row.name }}">{{ row.name }}</td>
+                <td title="{{ row.role }}">{{ row.role }}</td>
+                <td>{{ row.object_type }}</td>
+                <td>{{ row.color }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4">No graph nodes yet. Import the directory or deploy honey objects.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Type</th>
-              <th>Marker</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in graph_rows %}
-            <tr>
-              <td title="{{ row.name }}">{{ row.name }}</td>
-              <td title="{{ row.role }}">{{ row.role }}</td>
-              <td>{{ row.object_type }}</td>
-              <td>{{ row.color }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="4">No graph nodes yet. Import the directory or deploy honey objects.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">NeoDash (optional)</h2>
+      </div>
+      <div class="card__body card__body--compact">
+        <div class="embed-frame embed-frame--compact">
+          <iframe src="{{ neodash_url }}" title="NeoDash dashboard"></iframe>
+        </div>
+        <p class="status-block__msg u-mt">External dashboard link. Primary graph view is the canvas above.</p>
       </div>
     </div>
   </div>

@@ -125,7 +125,8 @@ class GraphStore:
         query = """
         MATCH (n)
         WHERE any(label IN labels(n) WHERE label IN $labels)
-        RETURN labels(n)[0] AS object_type,
+        RETURN elementId(n) AS id,
+               labels(n)[0] AS object_type,
                coalesce(n.name, n.sam_account_name, n.dn, '') AS name,
                coalesce(n.role, n.object_type, labels(n)[0], '') AS role,
                coalesce(n.color, CASE WHEN labels(n)[0] STARTS WITH 'Honey' THEN 'blue' ELSE 'slate' END) AS color,
@@ -140,6 +141,7 @@ class GraphStore:
             for record in result:
                 rows.append(
                     {
+                        "id": str(record["id"]),
                         "object_type": record["object_type"],
                         "name": record["name"],
                         "role": record["role"] or "",
@@ -149,6 +151,47 @@ class GraphStore:
                     }
                 )
             return rows
+
+    def fetch_topology(
+        self,
+        *,
+        labels: tuple[str, ...] | list[str],
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        """Return nodes + relationships for the native visualization canvas."""
+
+        nodes = self.fetch_nodes(labels=labels, limit=limit)
+        if not nodes:
+            return {"nodes": [], "edges": []}
+
+        driver = self._get_driver()
+        label_list = list(labels)
+        edge_query = """
+        MATCH (a)-[r]->(b)
+        WHERE any(label IN labels(a) WHERE label IN $labels)
+          AND any(label IN labels(b) WHERE label IN $labels)
+        RETURN elementId(a) AS source,
+               elementId(b) AS target,
+               type(r) AS rel_type
+        LIMIT $limit
+        """
+        edges: list[dict[str, Any]] = []
+        with driver.session(database=self.settings.neo4j_database) as session:
+            result = session.run(edge_query, labels=label_list, limit=max(1, limit * 3))
+            node_ids = {node["id"] for node in nodes}
+            for record in result:
+                source = str(record["source"])
+                target = str(record["target"])
+                if source in node_ids and target in node_ids:
+                    edges.append(
+                        {
+                            "id": f"{source}->{record['rel_type']}->{target}",
+                            "source": source,
+                            "target": target,
+                            "rel_type": record["rel_type"],
+                        }
+                    )
+        return {"nodes": nodes, "edges": edges}
 
     def import_cypher_file(self, content: str) -> dict[str, Any]:
         statements = [part.strip() for part in content.split(";") if part.strip()]

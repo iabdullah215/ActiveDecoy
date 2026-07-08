@@ -118,12 +118,19 @@ After a successful LDAP validation:
 1. Open **Connection** and click **Import directory**.
 2. ActiveDecoy enumerates users, groups, computers, memberships, and trusts (paged; capped by `LDAP_MAX_OBJECTS`).
 3. When Neo4j is configured, topology is upserted as `ADUser` / `ADGroup` / `ADComputer` / `ADTrust` / `ADDomain` nodes with `MEMBER_OF` and `IN_DOMAIN` relationships.
-4. Visualization and Home show AD object counts and inventory rows alongside honey objects.
+4. Visualization shows an interactive topology canvas (plus inventory) for honey and AD objects.
 
 Tune limits in `.env`:
 
 - `LDAP_PAGE_SIZE=200`
 - `LDAP_MAX_OBJECTS=500`
+
+### Visualization (Chunk 5)
+
+- Primary view: native canvas at `/visualization` (drag nodes, zoom, click for details).
+- Filters: scope (all/honey/AD), name/type, role, active-only, honey-only.
+- API: `GET /api/graph/topology` returns nodes + edges (Neo4j when connected, session/preview otherwise).
+- NeoDash iframe remains optional/secondary.
 
 If you are testing honey-user creation or similar workflows, ensure the account has explicit authorization to create directory objects in the chosen OU.
 

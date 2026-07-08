@@ -380,4 +380,304 @@ document.addEventListener("DOMContentLoaded", () => {
     loadEvents();
     scheduleRefresh();
   }
+
+  const vizFilters = document.querySelector("[data-viz-filters]");
+  const graphCanvas = document.querySelector("[data-graph-canvas]");
+  if (vizFilters && graphCanvas) {
+    const tableBody = document.querySelector("[data-viz-table]");
+    const stateBadge = document.querySelector("[data-viz-state]");
+    const sourceBadge = document.querySelector("[data-viz-source]");
+    const messageEl = document.querySelector("[data-viz-message]");
+    const selectionEl = document.querySelector("[data-viz-selection]");
+    const ctx = graphCanvas.getContext("2d");
+
+    const colorFor = (node) => {
+      const type = node.object_type || "";
+      if (type.startsWith("Honey")) return "#3b82f6";
+      if (type === "ADTrust") return "#f59e0b";
+      if (type.startsWith("AD")) return "#94a3b8";
+      return "#64748b";
+    };
+
+    const state = {
+      nodes: [],
+      edges: [],
+      positions: new Map(),
+      dragId: null,
+      panX: 0,
+      panY: 0,
+      scale: 1,
+      simTicks: 0,
+    };
+
+    const resizeCanvas = () => {
+      const rect = graphCanvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      graphCanvas.width = Math.max(640, Math.floor(rect.width * dpr));
+      graphCanvas.height = Math.floor(520 * dpr);
+      graphCanvas.style.width = `${Math.max(640, Math.floor(rect.width))}px`;
+      graphCanvas.style.height = "520px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const filterQuery = () => {
+      const params = new URLSearchParams();
+      params.set("kind", vizFilters.querySelector('[name="kind"]')?.value || "all");
+      const q = vizFilters.querySelector('[name="q"]')?.value?.trim();
+      const role = vizFilters.querySelector('[name="role"]')?.value?.trim();
+      if (q) params.set("q", q);
+      if (role) params.set("role", role);
+      if (vizFilters.querySelector('[name="active_only"]')?.checked) params.set("active_only", "true");
+      if (vizFilters.querySelector('[name="honey_only"]')?.checked) params.set("honey_only", "true");
+      params.set("limit", "150");
+      return params;
+    };
+
+    const layoutNodes = (nodes) => {
+      const width = graphCanvas.clientWidth || 900;
+      const height = 520;
+      const cx = width / 2;
+      const cy = height / 2;
+      nodes.forEach((node, index) => {
+        const angle = (Math.PI * 2 * index) / Math.max(nodes.length, 1);
+        const radius = 40 + (index % 5) * 28 + Math.min(160, nodes.length * 4);
+        state.positions.set(node.id, {
+          x: cx + Math.cos(angle) * radius,
+          y: cy + Math.sin(angle) * radius,
+          vx: 0,
+          vy: 0,
+        });
+      });
+    };
+
+    const stepSimulation = () => {
+      const nodes = state.nodes;
+      if (!nodes.length) return;
+      for (let i = 0; i < nodes.length; i += 1) {
+        const a = state.positions.get(nodes[i].id);
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const b = state.positions.get(nodes[j].id);
+          let dx = a.x - b.x;
+          let dy = a.y - b.y;
+          let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const rep = 2200 / (dist * dist);
+          dx = (dx / dist) * rep;
+          dy = (dy / dist) * rep;
+          a.vx += dx;
+          a.vy += dy;
+          b.vx -= dx;
+          b.vy -= dy;
+        }
+      }
+      state.edges.forEach((edge) => {
+        const a = state.positions.get(edge.source);
+        const b = state.positions.get(edge.target);
+        if (!a || !b) return;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (dist - 110) * 0.01;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        a.vx += fx;
+        a.vy += fy;
+        b.vx -= fx;
+        b.vy -= fy;
+      });
+      nodes.forEach((node) => {
+        if (state.dragId === node.id) return;
+        const p = state.positions.get(node.id);
+        p.vx *= 0.85;
+        p.vy *= 0.85;
+        p.x += p.vx;
+        p.y += p.vy;
+      });
+    };
+
+    const draw = () => {
+      const width = graphCanvas.clientWidth || 900;
+      const height = 520;
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.translate(state.panX, state.panY);
+      ctx.scale(state.scale, state.scale);
+
+      state.edges.forEach((edge) => {
+        const a = state.positions.get(edge.source);
+        const b = state.positions.get(edge.target);
+        if (!a || !b) return;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.45)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      });
+
+      state.nodes.forEach((node) => {
+        const p = state.positions.get(node.id);
+        if (!p) return;
+        const radius = node.object_type?.startsWith("Honey") ? 11 : 9;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = colorFor(node);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.stroke();
+        ctx.fillStyle = "rgba(226, 232, 240, 0.95)";
+        ctx.font = "11px Inter, system-ui, sans-serif";
+        ctx.fillText(String(node.name || "").slice(0, 22), p.x + 12, p.y + 4);
+      });
+      ctx.restore();
+    };
+
+    const animate = () => {
+      if (state.simTicks > 0) {
+        stepSimulation();
+        state.simTicks -= 1;
+      }
+      draw();
+      requestAnimationFrame(animate);
+    };
+
+    const renderTable = (nodes) => {
+      if (!tableBody) return;
+      if (!nodes.length) {
+        tableBody.innerHTML = '<tr><td colspan="4">No nodes match the current filters.</td></tr>';
+        return;
+      }
+      tableBody.innerHTML = nodes
+        .map((node) => `<tr>
+          <td title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</td>
+          <td title="${escapeHtml(node.role)}">${escapeHtml(node.role || "")}</td>
+          <td>${escapeHtml(node.object_type || "")}</td>
+          <td>${escapeHtml(node.color || "")}</td>
+        </tr>`)
+        .join("");
+    };
+
+    const escapeHtml = (value) =>
+      String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[ch]);
+
+    const updateStats = (counts, source) => {
+      document.querySelectorAll("[data-viz-stat]").forEach((el) => {
+        const key = el.getAttribute("data-viz-stat");
+        if (counts && key in counts) el.textContent = counts[key];
+      });
+      if (sourceBadge) {
+        sourceBadge.textContent = source === "neo4j" ? "Live" : source === "preview" ? "Preview" : source;
+        sourceBadge.className = `badge ${source === "neo4j" ? "badge--connected" : "badge--pending"}`;
+      }
+    };
+
+    const loadTopology = async () => {
+      if (stateBadge) {
+        stateBadge.textContent = "Loading";
+        stateBadge.className = "badge badge--pending";
+      }
+      try {
+        const res = await fetch(`/api/graph/topology?${filterQuery()}`);
+        if (!res.ok) throw new Error(`Topology request failed (${res.status})`);
+        const payload = await res.json();
+        state.nodes = payload.nodes || [];
+        state.edges = payload.edges || [];
+        layoutNodes(state.nodes);
+        state.simTicks = 80;
+        renderTable(state.nodes);
+        updateStats(payload.counts || {}, payload.source || "preview");
+        if (stateBadge) {
+          stateBadge.textContent = payload.source === "neo4j" ? "Live" : "Preview";
+          stateBadge.className = `badge ${payload.source === "neo4j" ? "badge--connected" : "badge--pending"}`;
+        }
+        if (messageEl) {
+          messageEl.textContent = state.nodes.length
+            ? `Showing ${state.nodes.length} node(s), ${state.edges.length} edge(s).`
+            : "No nodes match filters — import directory or deploy honey objects.";
+        }
+      } catch (error) {
+        if (stateBadge) {
+          stateBadge.textContent = "Error";
+          stateBadge.className = "badge badge--error";
+        }
+        if (messageEl) messageEl.textContent = error.message;
+      }
+    };
+
+    const eventPos = (event) => {
+      const rect = graphCanvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left - state.panX) / state.scale,
+        y: (event.clientY - rect.top - state.panY) / state.scale,
+      };
+    };
+
+    const findNodeAt = (x, y) => {
+      for (let i = state.nodes.length - 1; i >= 0; i -= 1) {
+        const node = state.nodes[i];
+        const p = state.positions.get(node.id);
+        if (!p) continue;
+        const dx = p.x - x;
+        const dy = p.y - y;
+        if (dx * dx + dy * dy <= 14 * 14) return node;
+      }
+      return null;
+    };
+
+    graphCanvas.addEventListener("pointerdown", (event) => {
+      const pos = eventPos(event);
+      const hit = findNodeAt(pos.x, pos.y);
+      if (hit) {
+        state.dragId = hit.id;
+        graphCanvas.classList.add("is-dragging");
+        if (selectionEl) {
+          selectionEl.textContent = `${hit.name} · ${hit.object_type} · ${hit.role || "no role"}`;
+        }
+        graphCanvas.setPointerCapture(event.pointerId);
+      }
+    });
+
+    graphCanvas.addEventListener("pointermove", (event) => {
+      if (!state.dragId) return;
+      const pos = eventPos(event);
+      const p = state.positions.get(state.dragId);
+      if (!p) return;
+      p.x = pos.x;
+      p.y = pos.y;
+      p.vx = 0;
+      p.vy = 0;
+    });
+
+    const endDrag = () => {
+      state.dragId = null;
+      graphCanvas.classList.remove("is-dragging");
+    };
+    graphCanvas.addEventListener("pointerup", endDrag);
+    graphCanvas.addEventListener("pointercancel", endDrag);
+
+    graphCanvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? 0.92 : 1.08;
+      state.scale = Math.min(2.5, Math.max(0.45, state.scale * delta));
+    }, { passive: false });
+
+    vizFilters.addEventListener("change", loadTopology);
+    vizFilters.addEventListener("input", (event) => {
+      if (event.target?.name === "q" || event.target?.name === "role") {
+        clearTimeout(vizFilters._timer);
+        vizFilters._timer = setTimeout(loadTopology, 250);
+      }
+    });
+    document.querySelector('[data-action="viz-refresh"]')?.addEventListener("click", loadTopology);
+
+    resizeCanvas();
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      draw();
+    });
+    loadTopology();
+    animate();
+  }
 });
