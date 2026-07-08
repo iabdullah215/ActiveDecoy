@@ -97,7 +97,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.10.0", lifespan=lifespan)
+app = FastAPI(title="ActiveDecoy", version="0.11.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,

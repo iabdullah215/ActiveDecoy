@@ -94,6 +94,7 @@ Open `http://127.0.0.1:8000` and sign in with credentials from `.env`. Details i
 - Startup validates configuration and emits warnings for default secrets / missing Neo4j password.
 - Login is rate-limited; LDAP/hypervisor passwords stay server-side (not in the session cookie).
 - Optional lab connectors (`pyvmomi`, VirtualBox bindings, `pywin32`, `impacket`) are documented in `requirements.txt` and SETUP.md — install only what you need.
+- **124+ unit/API tests** cover engines, mocked LDAP/Neo4j, E2E console flows, and concurrency — see `tests/README.md`.
 - The code is designed to be extended with real connectors and policy enforcement in your own environment.
 
 ## Collaborators

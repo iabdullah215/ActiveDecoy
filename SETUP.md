@@ -262,8 +262,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR:
 
 - dependency install
 - import smoke check
-- `unittest discover -s tests`
+- `unittest discover -s tests` (engines, mocked LDAP/Neo4j, E2E API, concurrency)
 - `docker compose config` syntax check
+
+See `tests/README.md` for the full test map.
 
 ## Security Notes
 
