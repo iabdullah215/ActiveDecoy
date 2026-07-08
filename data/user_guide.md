@@ -23,6 +23,15 @@ directory visibility, deception planning, and monitored response.
 7. Use the Policy page for deny-logon GPO guidance, playbooks, and alert export
    (JSON / STIX / syslog). Hide baseline noise on Monitoring when triaging.
 
+## Further reading (repository docs)
+
+- [docs/ONBOARDING.md](../docs/ONBOARDING.md) — collaborator setup
+- [docs/RUNBOOK.md](../docs/RUNBOOK.md) — authorized deployment phases
+- [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — architecture diagrams
+- [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) — common failures
+- [docs/API.md](../docs/API.md) — REST reference (`/docs` when app is running)
+- Demo script: `./scripts/demo_walkthrough.sh`
+
 ## Safety Notes
 
 - Use only on systems you own or are explicitly authorized to test.

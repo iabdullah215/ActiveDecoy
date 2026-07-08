@@ -18,9 +18,11 @@ from app.core.agent_registry import AgentRegistry
 
 
 class IngestEventItem(BaseModel):
-    event_id: int
-    actor: str
-    target: str
+    """Single Windows security-style event from an agent or SIEM forwarder."""
+
+    event_id: int = Field(description="Windows Event ID (4768, 4769, 4624, 4625)")
+    actor: str = Field(description="Source host, IP, or account")
+    target: str = Field(description="Honey user, SPN, or target identity")
     severity: str = "info"
     source: str = "agent"
     description: str = ""
@@ -29,8 +31,10 @@ class IngestEventItem(BaseModel):
 
 
 class IngestRequest(BaseModel):
+    """Bulk ingest payload (max 100 events per request)."""
+
     events: list[IngestEventItem] = Field(default_factory=list)
-    agent_id: str = "washu-agent"
+    agent_id: str = Field(default="washu-agent", description="Logical agent identifier")
 
 
 def build_monitoring_router(

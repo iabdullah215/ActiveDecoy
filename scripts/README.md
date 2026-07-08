@@ -6,6 +6,7 @@
 | `run.sh` | Start the FastAPI app via `main.py` |
 | `import_sample_graph.py` | Load `data/sample_graph.cypher` into Neo4j |
 | `forward_sample_events.py` | POST sample security events to `/api/monitoring/ingest` |
+| `demo_walkthrough.sh` | Narrated API demo for presentations (login → deploy → simulate) |
 
 ## Washu Agent
 

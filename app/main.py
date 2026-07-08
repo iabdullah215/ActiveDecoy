@@ -80,6 +80,26 @@ login_rate_limiter = SlidingWindowRateLimiter(
     window_seconds=settings.login_rate_window_seconds,
 )
 
+OPENAPI_TAGS = [
+    {"name": "connection", "description": "LDAP profile, bridge validation, directory enumeration"},
+    {"name": "graph", "description": "Neo4j topology nodes, edges, and health"},
+    {"name": "monitoring", "description": "Event feed, ingest, SSE stream, simulation, triage"},
+    {"name": "agents", "description": "Washu Agent heartbeat and health registry"},
+    {"name": "policy", "description": "ITDR policy posture, playbooks, alert export"},
+    {"name": "deception", "description": "Honey-object deploy, preflight, teardown"},
+    {"name": "system", "description": "Health and bridge state"},
+]
+
+APP_DESCRIPTION = """
+ActiveDecoy ITDR lab console API.
+
+**Session auth:** `POST /login` with form fields `username` and `password` (cookie session).
+
+**Agent auth:** `X-Agent-Token` header matching `AGENT_INGEST_TOKEN` for ingest and heartbeat.
+
+See `docs/API.md` and `docs/RUNBOOK.md` in the repository for operator documentation.
+""".strip()
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -97,7 +117,18 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.11.0", lifespan=lifespan)
+app = FastAPI(
+    title="ActiveDecoy",
+    version="0.12.0",
+    description=APP_DESCRIPTION,
+    openapi_tags=OPENAPI_TAGS,
+    lifespan=lifespan,
+    contact={
+        "name": "ActiveDecoy Lab",
+        "url": "https://github.com",
+    },
+    license_info={"name": "Authorized lab use only — see README security disclaimer"},
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -433,8 +464,9 @@ def guide_page(request: Request) -> HTMLResponse:
     return _render(request, "guide.html", title="User Guide", guide_markdown=guide_markdown)
 
 
-@app.get("/api/health")
+@app.get("/api/health", tags=["system"], summary="Liveness and subsystem status")
 def api_health(request: Request) -> dict[str, Any]:
+    """Public health probe. Returns graph and agent summaries without requiring login."""
     graph_health = graph_store.health()
     agents = agent_registry.summary()
     return {
@@ -455,8 +487,9 @@ def api_health(request: Request) -> dict[str, Any]:
     }
 
 
-@app.get("/api/system-state")
+@app.get("/api/system-state", tags=["system"], summary="Authenticated bridge state")
 def api_system_state(request: Request) -> dict[str, Any]:
+    """Return the current LDAP/hypervisor bridge state (passwords redacted)."""
     _require_auth_api(request)
     return _current_bridge_state(request)
 
@@ -469,7 +502,11 @@ def _parse_form_bool(value: str | bool | None) -> bool:
     return str(value).lower() in {"1", "true", "yes", "on"}
 
 
-@app.post("/api/deception/deploy")
+@app.post(
+    "/api/deception/deploy",
+    tags=["deception"],
+    summary="Build and optionally provision a deception deployment",
+)
 def api_deception_deploy(
     request: Request,
     modules: Annotated[list[str] | None, Form()] = None,
@@ -530,13 +567,13 @@ def api_deception_deploy(
     return payload
 
 
-@app.get("/api/deception/history")
+@app.get("/api/deception/history", tags=["deception"], summary="List recent deployments")
 def api_deception_history(request: Request, limit: int = 20) -> dict[str, Any]:
     _require_auth_api(request)
     return {"deployments": deployment_history.list_records(limit=limit)}
 
 
-@app.get("/api/deception/preflight")
+@app.get("/api/deception/preflight", tags=["deception"], summary="AD honey OU preflight")
 def api_deception_preflight(request: Request) -> dict[str, Any]:
     _require_auth_api(request)
     profile = load_session_profile(request.session, settings)
@@ -550,7 +587,7 @@ def api_deception_preflight(request: Request) -> dict[str, Any]:
     return result
 
 
-@app.post("/api/deception/teardown")
+@app.post("/api/deception/teardown", tags=["deception"], summary="Teardown last AD provision")
 def api_deception_teardown(
     request: Request,
     deployment_id: Annotated[str, Form()] = "",

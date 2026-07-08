@@ -267,6 +267,27 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR:
 
 See `tests/README.md` for the full test map.
 
+## 8. Documentation (operator experience)
+
+Full doc index: [docs/README.md](docs/README.md)
+
+| Document | Use when |
+|----------|----------|
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | First day on the project |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Running an authorized lab exercise |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Understanding components |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Something fails in the lab |
+| [docs/API.md](docs/API.md) | Integrating with REST / agents |
+
+Interactive API explorer (app running): `http://127.0.0.1:8000/docs`
+
+Presentation demo:
+
+```bash
+./scripts/demo_walkthrough.sh          # full API walkthrough
+./scripts/demo_walkthrough.sh --check-only
+```
+
 ## Security Notes
 
 - Do not commit `.env`.

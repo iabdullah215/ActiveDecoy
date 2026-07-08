@@ -11,11 +11,8 @@ This project is intended for educational, defensive, and explicitly authorized s
 ```text
 ActiveDecoy/
 ├── app/
-│   ├── api/
-│   ├── core/
-│   ├── static/
-│   └── templates/
 ├── washu_agent/
+├── docs/
 ├── scripts/
 ├── data/
 ├── tests/
@@ -68,6 +65,20 @@ ActiveDecoy/
 - Deny-logon GPO artifacts and operator checklist.
 - Response playbooks per Event ID.
 - Multi-domain tracking via OU / `AD_MONITORED_DOMAINS`.
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [SETUP.md](SETUP.md) | Bootstrap, Docker, env vars |
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | New collaborator first-day guide |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Authorized deploy → exercise → teardown |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System diagram and module map |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | LDAP, Neo4j, agent fixes |
+| [docs/API.md](docs/API.md) | REST reference + `/docs` OpenAPI UI |
+| [data/user_guide.md](data/user_guide.md) | In-console workflow (User Guide page) |
+
+**Corridor demo:** `./scripts/demo_walkthrough.sh` (console must be running).
 
 ## Quick Start
 
