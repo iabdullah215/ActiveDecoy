@@ -269,6 +269,56 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
 
+    const healthBadgeClass = (health) => {
+      if (health === "healthy") return "badge badge--connected";
+      if (health === "stale") return "badge badge--pending";
+      return "badge badge--error";
+    };
+
+    const loadAgents = async () => {
+      const listEl = document.querySelector("[data-agent-list]");
+      const badgeEl = document.querySelector("[data-agent-health-badge]");
+      const vmEl = document.querySelector("[data-agent-vm]");
+      if (!listEl) return;
+      try {
+        const res = await fetch("/api/agents");
+        if (!res.ok) throw new Error(`Agent status failed (${res.status})`);
+        const payload = await res.json();
+        if (badgeEl) {
+          badgeEl.textContent = `${payload.healthy || 0}/${payload.total || 0} healthy`;
+          badgeEl.className =
+            payload.healthy > 0 ? "badge badge--connected" : "badge badge--pending";
+        }
+        if (vmEl && payload.registered_vm_name) {
+          vmEl.textContent = `Hypervisor VM: ${payload.registered_vm_name}`;
+        }
+        const agents = payload.agents || [];
+        if (!agents.length) {
+          listEl.innerHTML = `<li class="data-list__row">
+            <span class="data-list__label">No agents</span>
+            <span class="data-list__value data-list__value--muted">Waiting for heartbeat…</span>
+          </li>`;
+          return;
+        }
+        listEl.innerHTML = agents
+          .map(
+            (agent) => `<li class="data-list__row">
+              <span class="data-list__label">${escapeHtml(agent.agent_id)}</span>
+              <span class="data-list__value">
+                <span class="${healthBadgeClass(agent.health)}">${escapeHtml(agent.health)}</span>
+                ${escapeHtml(agent.hostname || "—")} · ${agent.events_forwarded || 0} fwd
+              </span>
+            </li>`
+          )
+          .join("");
+      } catch (error) {
+        listEl.innerHTML = `<li class="data-list__row">
+          <span class="data-list__label">Error</span>
+          <span class="data-list__value data-list__value--warn">${escapeHtml(error.message)}</span>
+        </li>`;
+      }
+    };
+
     const renderEvents = (events) => {
       if (!events.length) {
         monitoringTable.innerHTML = '<tr><td colspan="7">No events match the current filters.</td></tr>';
@@ -319,6 +369,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const payload = await res.json();
         renderEvents(payload.events || []);
         updateStats(payload.stats);
+        loadAgents();
         if (feedState && !(eventSource && eventSource.readyState === 1)) {
           feedState.textContent = "Live";
           feedState.className = "badge badge--connected";

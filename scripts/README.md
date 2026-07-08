@@ -7,6 +7,16 @@
 | `import_sample_graph.py` | Load `data/sample_graph.cypher` into Neo4j |
 | `forward_sample_events.py` | POST sample security events to `/api/monitoring/ingest` |
 
+## Washu Agent
+
+```bash
+python -m washu_agent check
+python -m washu_agent heartbeat --token "$AGENT_INGEST_TOKEN"
+python -m washu_agent run --source demo --token "$AGENT_INGEST_TOKEN"
+```
+
+See `washu_agent/.env.example` and SETUP.md § Washu Agent.
+
 ## Docker
 
 From the repo root:

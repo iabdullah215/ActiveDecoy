@@ -15,6 +15,7 @@ ActiveDecoy/
 │   ├── core/
 │   ├── static/
 │   └── templates/
+├── washu_agent/
 ├── scripts/
 ├── data/
 ├── tests/
@@ -55,6 +56,7 @@ ActiveDecoy/
 - Live event feed for 4768, 4769, 4625, and 4624 signals with severity filtering.
 - Honey-object interaction correlation against the last deployed deception plan.
 - Agent / SIEM bulk ingest (`POST /api/monitoring/ingest`) with token auth.
+- Washu Agent package (`washu_agent/`) with heartbeat health on Monitoring.
 - Persistent event store and SSE live stream for the Monitoring console.
 - Lab interaction simulator to exercise the detection pipeline end to end.
 - Alert triage with per-event and bulk acknowledgement plus rollup stats.

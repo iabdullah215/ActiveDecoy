@@ -193,13 +193,44 @@ Breadcrumbs and Honey DC remain plan/graph-only in this chunk.
 
 ## 5. Washu Agent Setup
 
-The Washu Agent is the monitoring VM used to watch honey-object interaction (not yet shipped in-repo — see Chunk 7).
+The Washu Agent is the monitoring forwarder that runs on an isolated lab VM, ships Security events to ActiveDecoy, and posts heartbeats so the console can show agent health.
 
-1. Provision a small, isolated VM inside the lab network.
-2. Install your preferred monitoring agent or log forwarder.
-3. Confirm it can reach the domain controller and Neo4j endpoint as needed.
-4. Register the VM in the hypervisor integration settings.
-5. Keep the agent on a separate admin path from the honeypot objects it observes.
+### On the console host
+
+1. Set `AGENT_INGEST_TOKEN` (and optionally `AGENT_STALE_SECONDS=90`) in `.env`.
+2. Under **Connection → Hypervisor**, set the VM name (default `Washu-DC`) so operators know which VM is expected.
+3. Confirm Monitoring shows the **Washu Agent** card.
+
+### On the monitoring VM
+
+```bash
+# From the ActiveDecoy repo (or copy the washu_agent/ package)
+cp washu_agent/.env.example washu_agent/.env
+# Set WASHU_CONSOLE_URL and WASHU_INGEST_TOKEN (= AGENT_INGEST_TOKEN)
+
+# Reachability
+python -m washu_agent check --console-url http://<console-host>:8000
+
+# Single demo cycle (dry-run prints payloads without posting)
+python -m washu_agent once --source demo --dry-run
+
+# Continuous forwarder (demo source until real winlog/file is configured)
+export WASHU_INGEST_TOKEN=your-token
+python -m washu_agent run --source demo --console-url http://<console-host>:8000
+```
+
+**Event sources**
+
+| Source | Use |
+|--------|-----|
+| `demo` | Synthetic honey events for corridor / lab demos |
+| `file` | Tail NDJSON export (`WASHU_EVENT_LOG_PATH`) |
+| `winlog` | Windows Security log via `pywin32` (Windows only) |
+| `auto` | Prefer file/winlog when available, else demo |
+
+APIs: `POST /api/agents/heartbeat`, `GET /api/agents` (session auth), ingest via Chunk 6.
+
+Keep the agent on a separate admin path from the honeypot objects it observes.
 
 ## 6. Launching the App
 

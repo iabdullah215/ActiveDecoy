@@ -25,6 +25,7 @@ def _settings(**overrides) -> Settings:
         login_rate_limit=5,
         login_rate_window_seconds=60,
         agent_ingest_token="",
+        agent_stale_seconds=90,
         ldap_host="dc01.lab.local",
         ldap_port=389,
         ldap_use_ssl=False,

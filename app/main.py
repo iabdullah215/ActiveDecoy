@@ -19,9 +19,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
+from app.api.agents import build_agents_router
 from app.api.connection import build_connection_router
 from app.api.graph import build_graph_router
 from app.api.monitoring import build_monitoring_router
+from app.core.agent_registry import AgentRegistry
 from app.core.audit import audit_event, client_ip
 from app.core.config import enforce_startup_guards, get_settings, log_settings_summary
 from app.core.connection_manager import (
@@ -53,6 +55,7 @@ GUIDE_PATH = PROJECT_ROOT / "data" / "user_guide.md"
 SAMPLE_GRAPH_PATH = PROJECT_ROOT / "data" / "sample_graph.cypher"
 HISTORY_PATH = PROJECT_ROOT / "data" / "deployments.json"
 MONITORING_STORE_PATH = PROJECT_ROOT / "data" / "monitoring_events.json"
+AGENT_REGISTRY_PATH = PROJECT_ROOT / "data" / "agents.json"
 
 settings = get_settings()
 configure_logging(debug=settings.debug)
@@ -64,6 +67,10 @@ connection_manager = ConnectionManager()
 deception_engine = DeceptionEngine(seed=42)
 graph_store = GraphStore(settings)
 monitoring_engine = MonitoringEngine(seed=42, store_path=MONITORING_STORE_PATH)
+agent_registry = AgentRegistry(
+    store_path=AGENT_REGISTRY_PATH,
+    stale_seconds=settings.agent_stale_seconds,
+)
 deployment_history = DeploymentHistoryStore(HISTORY_PATH)
 login_rate_limiter = SlidingWindowRateLimiter(
     max_attempts=settings.login_rate_limit,
@@ -87,7 +94,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.8.0", lifespan=lifespan)
+app = FastAPI(title="ActiveDecoy", version="0.9.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -192,7 +199,10 @@ def _graph_rows_for_visualization(*, kind: str = "all") -> tuple[list[dict[str, 
 
 app.include_router(build_graph_router(graph_store, deception_engine, _require_auth_api))
 app.include_router(build_connection_router(connection_manager, settings, _require_auth_api, graph_store))
-app.include_router(build_monitoring_router(monitoring_engine, _require_auth_api, settings))
+app.include_router(
+    build_monitoring_router(monitoring_engine, _require_auth_api, settings, agent_registry)
+)
+app.include_router(build_agents_router(agent_registry, _require_auth_api, settings))
 
 
 @app.get("/", include_in_schema=False)
@@ -362,11 +372,15 @@ def deception_page(request: Request) -> HTMLResponse:
 @app.get("/monitoring", response_class=HTMLResponse)
 def monitoring_page(request: Request) -> HTMLResponse:
     _require_auth_page(request)
+    agent_summary = agent_registry.summary()
+    profile = load_session_profile(request.session, settings)
+    agent_summary["registered_vm_name"] = profile.hypervisor_vm_name or settings.hypervisor_vm_name
     return _render(
         request,
         "monitoring.html",
         title="Monitoring",
         monitoring_stats=monitoring_engine.stats(),
+        agent_summary=agent_summary,
         severities=["critical", "high", "medium", "info"],
     )
 
@@ -381,6 +395,7 @@ def guide_page(request: Request) -> HTMLResponse:
 @app.get("/api/health")
 def api_health(request: Request) -> dict[str, Any]:
     graph_health = graph_store.health()
+    agents = agent_registry.summary()
     return {
         "status": "ok",
         "authenticated": _authenticated(request),
@@ -389,6 +404,12 @@ def api_health(request: Request) -> dict[str, Any]:
             "configured": graph_health.configured,
             "connected": graph_health.connected,
             "node_count": graph_health.node_count,
+        },
+        "agents": {
+            "total": agents["total"],
+            "healthy": agents["healthy"],
+            "stale": agents["stale"],
+            "unhealthy": agents["unhealthy"],
         },
     }
 

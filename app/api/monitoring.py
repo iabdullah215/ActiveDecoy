@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from app.core.audit import audit_event
 from app.core.config import Settings
 from app.core.monitoring_engine import SEVERITIES, MonitoringEngine
+from app.core.agent_registry import AgentRegistry
 
 
 class IngestEventItem(BaseModel):
@@ -36,6 +37,7 @@ def build_monitoring_router(
     monitoring_engine: MonitoringEngine,
     require_auth,
     settings: Settings,
+    agent_registry: AgentRegistry | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
@@ -154,6 +156,11 @@ def build_monitoring_router(
             [item.model_dump() for item in payload.events],
             agent_id=payload.agent_id or "washu-agent",
         )
+        if agent_registry is not None:
+            agent_registry.note_ingest(
+                payload.agent_id or "washu-agent",
+                int(result.get("accepted") or 0),
+            )
         audit_event(
             "monitoring.ingest",
             actor=payload.agent_id or "washu-agent",

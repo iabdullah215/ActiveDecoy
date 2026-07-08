@@ -85,6 +85,40 @@
   <div class="grid-stack">
     <div class="card">
       <div class="card__header">
+        <h2 class="card__title">Washu Agent</h2>
+        <span class="badge badge--pending" data-agent-health-badge>
+          {{ agent_summary.healthy }}/{{ agent_summary.total }} healthy
+        </span>
+      </div>
+      <div class="card__body card__body--compact">
+        <p class="status-block__msg u-m0">
+          Monitoring VM heartbeats and forwarded Security events (4768/4769/4624/4625).
+          Register the VM name under Connection → Hypervisor.
+        </p>
+        <ul class="data-list u-mt-sm" data-agent-list>
+          {% if agent_summary.agents %}
+            {% for agent in agent_summary.agents %}
+            <li class="data-list__row">
+              <span class="data-list__label">{{ agent.agent_id }}</span>
+              <span class="data-list__value">
+                <span class="badge {% if agent.health == 'healthy' %}badge--connected{% elif agent.health == 'stale' %}badge--pending{% else %}badge--error{% endif %}">{{ agent.health }}</span>
+                {{ agent.hostname or '—' }} · {{ agent.events_forwarded }} fwd
+              </span>
+            </li>
+            {% endfor %}
+          {% else %}
+            <li class="data-list__row">
+              <span class="data-list__label">No agents</span>
+              <span class="data-list__value data-list__value--muted">Run <code>python -m washu_agent run</code> on the monitoring VM</span>
+            </li>
+          {% endif %}
+        </ul>
+        <pre data-agent-vm class="code-block u-mt-sm">Hypervisor VM: {{ agent_summary.registered_vm_name | default('Washu-DC') }}</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
         <h2 class="card__title">Lab controls</h2>
       </div>
       <div class="card__body card__body--compact">

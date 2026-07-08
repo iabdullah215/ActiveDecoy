@@ -54,6 +54,7 @@ class Settings:
     login_rate_limit: int
     login_rate_window_seconds: int
     agent_ingest_token: str
+    agent_stale_seconds: int
     ldap_host: str
     ldap_port: int
     ldap_use_ssl: bool
@@ -113,6 +114,7 @@ def get_settings() -> Settings:
         login_rate_limit=int(_env("LOGIN_RATE_LIMIT", "5")),
         login_rate_window_seconds=int(_env("LOGIN_RATE_WINDOW_SECONDS", "60")),
         agent_ingest_token=_env("AGENT_INGEST_TOKEN", ""),
+        agent_stale_seconds=int(_env("AGENT_STALE_SECONDS", "90")),
         ldap_host=_env("LDAP_HOST", "dc01.lab.local"),
         ldap_port=int(_env("LDAP_PORT", "389")),
         ldap_use_ssl=_env_bool("LDAP_USE_SSL", "false"),
@@ -164,6 +166,8 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append("AD_PROVISION_ENABLED is true but AD_HONEY_OU is empty.")
     if not settings.agent_ingest_token:
         warnings.append("AGENT_INGEST_TOKEN is empty; agent telemetry ingest stays disabled.")
+    if settings.agent_stale_seconds < 15:
+        warnings.append("AGENT_STALE_SECONDS should be >= 15.")
     if not settings.cors_origins:
         warnings.append("CORS_ORIGINS is empty; browser cross-origin API calls will be blocked.")
     return warnings

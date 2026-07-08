@@ -15,3 +15,5 @@ data/deployments.json
 data/deployments.tmp
 data/monitoring_events.json
 data/monitoring_events.tmp
+data/agents.json
+data/agents.json.tmp
