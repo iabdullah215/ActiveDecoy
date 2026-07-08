@@ -27,6 +27,7 @@ from app.api.policy import build_policy_router
 from app.core.agent_registry import AgentRegistry
 from app.core.audit import audit_event, client_ip
 from app.core.config import enforce_startup_guards, get_settings, log_settings_summary
+from app.core.console_auth import authenticate_console
 from app.core.connection_manager import (
     ConnectionManager,
     HypervisorType,
@@ -48,6 +49,8 @@ from app.core.monitoring_engine import MonitoringEngine
 from app.core.playbooks import list_playbooks
 from app.core.policy import PolicyEngine
 from app.core.rate_limit import SlidingWindowRateLimiter
+from app.middleware.security import SecurityHeadersMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -119,7 +122,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="ActiveDecoy",
-    version="0.12.0",
+    version="1.0.0",
     description=APP_DESCRIPTION,
     openapi_tags=OPENAPI_TAGS,
     lifespan=lifespan,
@@ -129,11 +132,15 @@ app = FastAPI(
     },
     license_info={"name": "Authorized lab use only — see README security disclaimer"},
 )
+if settings.trusted_proxy_hosts:
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=list(settings.trusted_proxy_hosts))
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
-    same_site="lax",
-    https_only=False,
+    same_site=settings.session_same_site,
+    https_only=settings.session_https_only,
+    max_age=settings.session_max_age,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -257,7 +264,13 @@ def index(request: Request) -> RedirectResponse:
 def login_page(request: Request) -> HTMLResponse:
     if _authenticated(request):
         return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
-    return _render(request, "login.html", title="Login", error=None)
+    return _render(
+        request,
+        "login.html",
+        title="Login",
+        error=None,
+        auth_mode=settings.console_auth_mode,
+    )
 
 
 @app.post("/login")
@@ -286,6 +299,7 @@ def login_submit(
             "login.html",
             title="Login",
             error=f"Too many login attempts. Try again in {limit.retry_after}s.",
+            auth_mode=settings.console_auth_mode,
         )
         response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
         response.headers["Retry-After"] = str(limit.retry_after)
@@ -293,15 +307,26 @@ def login_submit(
 
     login_rate_limiter.hit(ip)
 
-    if username == settings.admin_username and password == settings.admin_password:
+    auth = authenticate_console(username, password, settings)
+    if auth.ok:
         login_rate_limiter.reset(ip)
         request.session["authenticated"] = True
-        request.session["username"] = username
+        request.session["username"] = auth.actor
+        request.session["auth_method"] = auth.method
         request.session["bridge_state"] = bridge_state_to_dict(connection_manager.get_bridge_state())
         if not request.session.get("connection_profile"):
             save_session_profile(request.session, ConnectionProfile.from_settings(settings))
-        audit_event("login", actor=username, outcome="success", request=request)
+        audit_event(
+            "login",
+            actor=auth.actor,
+            outcome="success",
+            request=request,
+            method=auth.method,
+        )
         return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
+
+    if auth.message and auth.message != "Invalid credentials.":
+        logger.warning("Login rejected via %s: %s", auth.method or "unknown", auth.message)
 
     audit_event(
         "login",
@@ -317,7 +342,13 @@ def login_submit(
         len(raw_password),
         len(raw_username),
     )
-    return _render(request, "login.html", title="Login", error="Invalid credentials.")
+    return _render(
+        request,
+        "login.html",
+        title="Login",
+        error=auth.message or "Invalid credentials.",
+        auth_mode=settings.console_auth_mode,
+    )
 
 
 @app.get("/logout")

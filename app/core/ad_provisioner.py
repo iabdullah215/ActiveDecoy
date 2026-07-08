@@ -55,11 +55,15 @@ class ADProvisioner:
         name_prefix: str = "hw_",
         require_prefix: bool = True,
         description_tag: str = "ActiveDecoy honey object — authorized lab only",
+        harden_users: bool = False,
+        workstations_lock: str = "NONEXISTENT-AD-LOCK",
     ) -> None:
         self.honey_ou = honey_ou.strip()
         self.name_prefix = (name_prefix or "").strip()
         self.require_prefix = require_prefix
         self.description_tag = description_tag
+        self.harden_users = harden_users
+        self.workstations_lock = (workstations_lock or "NONEXISTENT-AD-LOCK").strip()
 
     def preflight(self, config: LDAPConfig) -> PreflightResult:
         debug: list[str] = []
@@ -347,6 +351,8 @@ class ADProvisioner:
             "description": self.description_tag,
             "userAccountControl": UAC_DISABLED_USER,
         }
+        if self.harden_users:
+            attrs["userWorkstations"] = self.workstations_lock
 
         if dry_run:
             return ProvisionedObject(
@@ -355,28 +361,33 @@ class ADProvisioner:
                 dn=dn,
                 action="would_create",
                 success=True,
-                message="Dry-run: honey user would be created (disabled).",
-                attributes={"userAccountControl": UAC_DISABLED_USER},
+                message="Dry-run: honey user would be created (disabled + workstation lock).",
+                attributes={
+                    "userAccountControl": UAC_DISABLED_USER,
+                    "userWorkstations": self.workstations_lock if self.harden_users else "",
+                },
             )
 
         assert connection is not None
         if self._object_exists(connection, ldap3, dn):
-            # Keep existing account; refresh description + disable flag.
-            connection.modify(
-                dn,
-                {
-                    "description": [(ldap3.MODIFY_REPLACE, [self.description_tag])],
-                    "userAccountControl": [(ldap3.MODIFY_REPLACE, [UAC_DISABLED_USER])],
-                },
-            )
+            mods: dict[str, Any] = {
+                "description": [(ldap3.MODIFY_REPLACE, [self.description_tag])],
+                "userAccountControl": [(ldap3.MODIFY_REPLACE, [UAC_DISABLED_USER])],
+            }
+            if self.harden_users:
+                mods["userWorkstations"] = [(ldap3.MODIFY_REPLACE, [self.workstations_lock])]
+            connection.modify(dn, mods)
             return ProvisionedObject(
                 object_type="HoneyUser",
                 name=name,
                 dn=dn,
                 action="updated",
                 success=True,
-                message="Honey user already existed; refreshed disable/description.",
-                attributes={"userAccountControl": UAC_DISABLED_USER},
+                message="Honey user already existed; refreshed disable/hardening attributes.",
+                attributes={
+                    "userAccountControl": UAC_DISABLED_USER,
+                    "userWorkstations": self.workstations_lock if self.harden_users else "",
+                },
             )
 
         ok = connection.add(dn, attributes=attrs)
@@ -402,8 +413,12 @@ class ADProvisioner:
             dn=dn,
             action="created",
             success=True,
-            message="Honey user created and disabled.",
-            attributes={"userAccountControl": UAC_DISABLED_USER, "display_name": display},
+            message="Honey user created, disabled, and hardened.",
+            attributes={
+                "userAccountControl": UAC_DISABLED_USER,
+                "display_name": display,
+                "userWorkstations": self.workstations_lock if self.harden_users else "",
+            },
         )
 
     def _provision_computer(

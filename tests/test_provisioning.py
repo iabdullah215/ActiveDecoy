@@ -35,6 +35,24 @@ class NamingSafetyTests(unittest.TestCase):
         self.assertFalse(provisioner._is_safe_dn("CN=alex.hale,OU=Honey,DC=lab,DC=local"))
         self.assertFalse(provisioner._is_safe_dn("CN=hw_alex.hale,CN=Users,DC=lab,DC=local"))
 
+    def test_hardened_dry_run_includes_workstation_lock(self) -> None:
+        provisioner = ADProvisioner(
+            honey_ou="OU=Honey,DC=lab,DC=local",
+            name_prefix="hw_",
+            harden_users=True,
+            workstations_lock="NONEXISTENT-AD-LOCK",
+        )
+        result = provisioner._provision_user(
+            connection=None,
+            ldap3=MagicMock(),
+            item={"object_type": "HoneyUser", "name": "hw_test.user", "attributes": {}},
+            name="hw_test.user",
+            dry_run=True,
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(result.action, "would_create")
+        self.assertEqual(result.attributes.get("userWorkstations"), "NONEXISTENT-AD-LOCK")
+
 
 class PreflightTests(unittest.TestCase):
     def test_preflight_requires_ou(self) -> None:

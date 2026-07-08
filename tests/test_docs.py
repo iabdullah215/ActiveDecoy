@@ -21,6 +21,7 @@ class DocumentationFilesTests(unittest.TestCase):
             "TROUBLESHOOTING.md",
             "ONBOARDING.md",
             "API.md",
+            "PRODUCTION.md",
         ]
         for name in required:
             path = DOCS / name if name != "README.md" else DOCS / "README.md"
@@ -36,7 +37,7 @@ class OpenApiMetadataTests(unittest.TestCase):
     def test_openapi_has_tags_and_version(self) -> None:
         schema = app.openapi()
         self.assertEqual(schema["info"]["title"], "ActiveDecoy")
-        self.assertEqual(schema["info"]["version"], "0.12.0")
+        self.assertEqual(schema["info"]["version"], "1.0.0")
         tag_names = {item["name"] for item in schema.get("tags", [])}
         expected = {item["name"] for item in OPENAPI_TAGS}
         self.assertTrue(expected.issubset(tag_names))

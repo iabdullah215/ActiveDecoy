@@ -12,6 +12,7 @@ def _settings(**overrides) -> Settings:
         session_secret="active-decoy-development-secret",
         admin_username="HwatSauce",
         admin_password="Active-Decoy!2026",
+        app_env="development",
         neo4j_uri="bolt://localhost:7687",
         neo4j_username="neo4j",
         neo4j_password="",
@@ -21,6 +22,12 @@ def _settings(**overrides) -> Settings:
         port=8000,
         debug=False,
         enforce_secure_defaults=False,
+        session_https_only=False,
+        session_same_site="lax",
+        session_max_age=604800,
+        trusted_proxy_hosts=(),
+        console_auth_mode="env",
+        console_ldap_domain="",
         cors_origins=("http://127.0.0.1:8000", "http://localhost:8000"),
         login_rate_limit=5,
         login_rate_window_seconds=60,
@@ -47,6 +54,8 @@ def _settings(**overrides) -> Settings:
         ad_require_name_prefix=True,
         ad_provision_enabled=False,
         ad_monitored_domains="",
+        ad_harden_on_provision=False,
+        ad_honey_workstations_lock="NONEXISTENT-AD-LOCK",
     )
     base.update(overrides)
     return Settings(**base)

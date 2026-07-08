@@ -20,6 +20,8 @@ def build_provisioner(settings: Settings) -> ADProvisioner:
         honey_ou=settings.ad_honey_ou,
         name_prefix=settings.ad_honey_name_prefix,
         require_prefix=settings.ad_require_name_prefix,
+        harden_users=settings.ad_harden_on_provision,
+        workstations_lock=settings.ad_honey_workstations_lock,
     )
 
 

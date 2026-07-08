@@ -1,0 +1,43 @@
+# Production overlay — use with base compose file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: activedecoy-caddy
+    ports:
+      - "${CONSOLE_HTTP_PORT:-80}:80"
+      - "${CONSOLE_HTTPS_PORT:-443}:443"
+    environment:
+      CONSOLE_DOMAIN: ${CONSOLE_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - activedecoy
+    restart: unless-stopped
+
+  app:
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      ENFORCE_SECURE_DEFAULTS: "true"
+      TRUSTED_PROXY_HOSTS: "*"
+      SESSION_HTTPS_ONLY: "true"
+      SESSION_SAME_SITE: strict
+      CONSOLE_AUTH_MODE: ${CONSOLE_AUTH_MODE:-ldap,env}
+      CONSOLE_LDAP_DOMAIN: ${CONSOLE_LDAP_DOMAIN:-}
+      AD_HARDEN_ON_PROVISION: "true"
+    restart: unless-stopped
+    ports: []  # expose only via Caddy in production overlay
+
+  neo4j:
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

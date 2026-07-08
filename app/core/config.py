@@ -36,11 +36,16 @@ def parse_cors_origins(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def parse_trusted_proxies(raw: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in (raw or "").split(",") if part.strip())
+
+
 @dataclass(frozen=True)
 class Settings:
     session_secret: str
     admin_username: str
     admin_password: str
+    app_env: str
     neo4j_uri: str
     neo4j_username: str
     neo4j_password: str
@@ -50,6 +55,12 @@ class Settings:
     port: int
     debug: bool
     enforce_secure_defaults: bool
+    session_https_only: bool
+    session_same_site: str
+    session_max_age: int
+    trusted_proxy_hosts: tuple[str, ...]
+    console_auth_mode: str
+    console_ldap_domain: str
     cors_origins: tuple[str, ...]
     login_rate_limit: int
     login_rate_window_seconds: int
@@ -76,6 +87,12 @@ class Settings:
     ad_require_name_prefix: bool
     ad_provision_enabled: bool
     ad_monitored_domains: str
+    ad_harden_on_provision: bool
+    ad_honey_workstations_lock: str
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() == "production"
 
     @property
     def neo4j_configured(self) -> bool:
@@ -98,10 +115,14 @@ class Settings:
 
 
 def get_settings() -> Settings:
+    app_env = _env("APP_ENV", "development").lower()
+    production = app_env == "production"
+    enforce_default = "true" if production else "false"
     return Settings(
         session_secret=_env("SESSION_SECRET", _DEFAULT_SESSION_SECRET),
         admin_username=_env("ADMIN_USERNAME", _DEFAULT_ADMIN_USERNAME),
         admin_password=_env("ADMIN_PASSWORD", _DEFAULT_ADMIN_PASSWORD),
+        app_env=app_env,
         neo4j_uri=_env("NEO4J_URI", "bolt://localhost:7687"),
         neo4j_username=_env("NEO4J_USERNAME", "neo4j"),
         neo4j_password=_env("NEO4J_PASSWORD", ""),
@@ -110,7 +131,13 @@ def get_settings() -> Settings:
         host=_env("APP_HOST", "127.0.0.1"),
         port=int(_env("APP_PORT", "8000")),
         debug=_env_bool("APP_DEBUG", "false"),
-        enforce_secure_defaults=_env_bool("ENFORCE_SECURE_DEFAULTS", "false"),
+        enforce_secure_defaults=_env_bool("ENFORCE_SECURE_DEFAULTS", enforce_default),
+        session_https_only=_env_bool("SESSION_HTTPS_ONLY", "true" if production else "false"),
+        session_same_site=_env("SESSION_SAME_SITE", "strict" if production else "lax"),
+        session_max_age=int(_env("SESSION_MAX_AGE", "28800" if production else "604800")),
+        trusted_proxy_hosts=parse_trusted_proxies(_env("TRUSTED_PROXY_HOSTS", "*" if production else "")),
+        console_auth_mode=_env("CONSOLE_AUTH_MODE", "ldap,env" if production else "env"),
+        console_ldap_domain=_env("CONSOLE_LDAP_DOMAIN", ""),
         cors_origins=tuple(parse_cors_origins(_env("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS))),
         login_rate_limit=int(_env("LOGIN_RATE_LIMIT", "5")),
         login_rate_window_seconds=int(_env("LOGIN_RATE_WINDOW_SECONDS", "60")),
@@ -137,6 +164,8 @@ def get_settings() -> Settings:
         ad_require_name_prefix=_env_bool("AD_REQUIRE_NAME_PREFIX", "true"),
         ad_provision_enabled=_env_bool("AD_PROVISION_ENABLED", "false"),
         ad_monitored_domains=_env("AD_MONITORED_DOMAINS", ""),
+        ad_harden_on_provision=_env_bool("AD_HARDEN_ON_PROVISION", "true" if production else "false"),
+        ad_honey_workstations_lock=_env("AD_HONEY_WORKSTATIONS_LOCK", "NONEXISTENT-AD-LOCK"),
     )
 
 
@@ -172,28 +201,62 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append("AGENT_STALE_SECONDS should be >= 15.")
     if not settings.cors_origins:
         warnings.append("CORS_ORIGINS is empty; browser cross-origin API calls will be blocked.")
+    if settings.is_production and settings.debug:
+        warnings.append("APP_DEBUG is true while APP_ENV=production.")
+    if settings.is_production and not settings.agent_ingest_token:
+        warnings.append("AGENT_INGEST_TOKEN is empty in production; telemetry ingest is disabled.")
+    if "ldap" in settings.console_auth_mode and not settings.console_ldap_domain:
+        warnings.append("CONSOLE_LDAP_DOMAIN is empty; LDAP login expects user@domain UPN format.")
     return warnings
+
+
+def enforce_production_guards(settings: Settings) -> None:
+    """Abort startup when APP_ENV=production but required controls are missing."""
+
+    if not settings.is_production:
+        return
+
+    blockers: list[str] = []
+    if settings.debug:
+        blockers.append("APP_DEBUG must be false in production")
+    if len(settings.session_secret) < 32:
+        blockers.append("SESSION_SECRET must be at least 32 characters")
+    if not settings.neo4j_password:
+        blockers.append("NEO4J_PASSWORD is required in production")
+    if not settings.agent_ingest_token or len(settings.agent_ingest_token) < 16:
+        blockers.append("AGENT_INGEST_TOKEN must be set (>=16 chars) in production")
+    if settings.using_default_admin_credentials and "env" in settings.console_auth_mode:
+        blockers.append("default ADMIN credentials cannot be used when env auth is enabled in production")
+    if settings.ad_provision_enabled and not settings.ad_honey_ou:
+        blockers.append("AD_HONEY_OU is required when AD_PROVISION_ENABLED=true in production")
+    if "ldap" in settings.console_auth_mode and not settings.ldap_host.strip():
+        blockers.append("LDAP_HOST is required when CONSOLE_AUTH_MODE includes ldap")
+
+    if blockers:
+        message = "APP_ENV=production but requirements are not met: " + "; ".join(blockers)
+        logger.error(message)
+        raise SystemExit(message)
 
 
 def enforce_startup_guards(settings: Settings) -> None:
     """Abort startup when shared-lab hardening is required but defaults remain."""
 
-    if not settings.enforce_secure_defaults:
-        return
+    if settings.enforce_secure_defaults:
+        blockers: list[str] = []
+        if settings.using_default_admin_credentials:
+            blockers.append("default ADMIN_USERNAME/ADMIN_PASSWORD")
+        if settings.using_default_session_secret:
+            blockers.append("default SESSION_SECRET")
+        if blockers:
+            message = (
+                "ENFORCE_SECURE_DEFAULTS=true but insecure defaults remain: "
+                + ", ".join(blockers)
+                + ". Update .env and restart."
+            )
+            logger.error(message)
+            raise SystemExit(message)
 
-    blockers: list[str] = []
-    if settings.using_default_admin_credentials:
-        blockers.append("default ADMIN_USERNAME/ADMIN_PASSWORD")
-    if settings.using_default_session_secret:
-        blockers.append("default SESSION_SECRET")
-    if blockers:
-        message = (
-            "ENFORCE_SECURE_DEFAULTS=true but insecure defaults remain: "
-            + ", ".join(blockers)
-            + ". Update .env and restart."
-        )
-        logger.error(message)
-        raise SystemExit(message)
+    enforce_production_guards(settings)
 
 
 def log_settings_summary(settings: Settings) -> None:
@@ -203,7 +266,8 @@ def log_settings_summary(settings: Settings) -> None:
         logger.warning("Config: %s", warning)
 
     logger.info(
-        "ActiveDecoy starting host=%s:%s debug=%s neo4j=%s ldap_host=%s hypervisor=%s cors=%s rate_limit=%s/%ss",
+        "ActiveDecoy starting env=%s host=%s:%s debug=%s neo4j=%s ldap_host=%s hypervisor=%s cors=%s rate_limit=%s/%ss auth=%s",
+        settings.app_env,
         settings.host,
         settings.port,
         settings.debug,
@@ -213,6 +277,7 @@ def log_settings_summary(settings: Settings) -> None:
         ",".join(settings.cors_origins) or "(none)",
         settings.login_rate_limit,
         settings.login_rate_window_seconds,
+        settings.console_auth_mode,
     )
 
 
