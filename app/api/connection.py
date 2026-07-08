@@ -6,11 +6,13 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, Request
 
+from app.core.audit import audit_event
 from app.core.config import Settings
 from app.core.connection_manager import ConnectionManager, bridge_state_to_dict
 from app.core.connection_profile import (
     ConnectionProfile,
     load_session_profile,
+    redact_bridge_state,
     save_session_profile,
 )
 from app.core.connection_service import run_connection_test
@@ -64,15 +66,24 @@ def build_connection_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/api/connection", tags=["connection"])
 
+    def _actor(request: Request) -> str:
+        return str(request.session.get("username") or "anonymous")
+
     @router.get("/profile")
     def connection_profile(request: Request) -> dict[str, Any]:
         require_auth(request)
         profile = load_session_profile(request.session, settings)
         checklist = request.session.get("connection_checklist", {})
+        bridge_state = request.session.get(
+            "bridge_state",
+            bridge_state_to_dict(manager.get_bridge_state()),
+        )
         return {
             "profile": profile.to_form_dict(),
             "checklist": checklist,
-            "bridge_state": request.session.get("bridge_state", bridge_state_to_dict(manager.get_bridge_state())),
+            "bridge_state": redact_bridge_state(bridge_state)
+            if isinstance(bridge_state, dict)
+            else bridge_state,
         }
 
     @router.post("/save")
@@ -110,6 +121,14 @@ def build_connection_router(
             auto_test_on_load=_parse_bool(auto_test_on_load),
         ).merge_secrets(stored)
         save_session_profile(request.session, profile)
+        audit_event(
+            "connection.save",
+            actor=_actor(request),
+            outcome="success",
+            request=request,
+            ldap_host=profile.ldap_host,
+            hypervisor_type=profile.hypervisor_type,
+        )
         return {"success": True, "profile": profile.to_public_dict()}
 
     def _execute_test(request: Request, profile: ConnectionProfile) -> dict[str, Any]:
@@ -123,11 +142,21 @@ def build_connection_router(
             retries=settings.connection_retries,
             retry_delay=settings.connection_retry_delay,
         )
+        # Never keep raw passwords in session-serialized bridge state.
+        result["bridge_state"] = redact_bridge_state(result["bridge_state"])
         request.session["bridge_state"] = result["bridge_state"]
         request.session["connection_checklist"] = result["checklist"]
         request.session["hypervisor_type"] = profile.hypervisor_type
         request.session["neodash_url"] = settings.neodash_url
         save_session_profile(request.session, profile)
+        audit_event(
+            "connection.test",
+            actor=_actor(request),
+            outcome="success" if result["checklist"]["bridge"]["status"] in {"connected", "degraded"} else "failure",
+            request=request,
+            bridge_status=result["checklist"]["bridge"]["status"],
+            ldap_host=profile.ldap_host,
+        )
         return result
 
     @router.post("/test")

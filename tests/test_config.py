@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.config import Settings, validate_settings
+from app.core.config import Settings, enforce_startup_guards, parse_cors_origins, validate_settings
 
 
 def _settings(**overrides) -> Settings:
@@ -20,6 +20,10 @@ def _settings(**overrides) -> Settings:
         host="127.0.0.1",
         port=8000,
         debug=False,
+        enforce_secure_defaults=False,
+        cors_origins=("http://127.0.0.1:8000", "http://localhost:8000"),
+        login_rate_limit=5,
+        login_rate_window_seconds=60,
         ldap_host="dc01.lab.local",
         ldap_port=389,
         ldap_use_ssl=False,
@@ -56,6 +60,27 @@ class ConfigValidationTests(unittest.TestCase):
             )
         )
         self.assertEqual(warnings, [])
+
+    def test_parse_cors_origins(self) -> None:
+        self.assertEqual(
+            parse_cors_origins("http://127.0.0.1:8000, http://localhost:8000"),
+            ["http://127.0.0.1:8000", "http://localhost:8000"],
+        )
+        self.assertEqual(parse_cors_origins(""), [])
+
+    def test_enforce_secure_defaults_blocks_startup(self) -> None:
+        with self.assertRaises(SystemExit):
+            enforce_startup_guards(_settings(enforce_secure_defaults=True))
+
+    def test_enforce_secure_defaults_allows_hardened(self) -> None:
+        enforce_startup_guards(
+            _settings(
+                enforce_secure_defaults=True,
+                session_secret="unique-lab-secret-value",
+                admin_username="lab-admin",
+                admin_password="lab-strong-pass!",
+            )
+        )
 
 
 if __name__ == "__main__":

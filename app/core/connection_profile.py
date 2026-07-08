@@ -1,16 +1,23 @@
-"""Connection profile persistence for LDAP and hypervisor lab bridges."""
+"""Connection profile persistence for LDAP and hypervisor lab bridges.
+
+Non-secret profile fields may live in the signed session cookie. Passwords are
+kept only in the process-local SecretStore (see app.core.secret_store).
+"""
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+import secrets
 from typing import Any
 
 from app.core.config import Settings
 from app.core.connection_manager import HypervisorConfig, HypervisorType, LDAPConfig
+from app.core.secret_store import secret_store
 
 
 SENSITIVE_KEYS = frozenset({"ldap_password", "hypervisor_password"})
+SESSION_SECRET_ID_KEY = "connection_secret_id"
 
 
 @dataclass
@@ -56,12 +63,13 @@ class ConnectionProfile:
             ldap_port=int(data.get("ldap_port", 389) or 389),
             ldap_use_ssl=_as_bool(data.get("ldap_use_ssl", False)),
             ldap_bind_dn=str(data.get("ldap_bind_dn", "")).strip(),
-            ldap_password=str(data.get("ldap_password", "")),
+            # Legacy sessions may still contain passwords; strip them on load.
+            ldap_password="",
             ldap_base_dn=str(data.get("ldap_base_dn", "")).strip(),
             hypervisor_type=str(data.get("hypervisor_type", HypervisorType.VMWARE.value)).strip().lower(),
             hypervisor_endpoint=str(data.get("hypervisor_endpoint", "")).strip(),
             hypervisor_username=str(data.get("hypervisor_username", "")).strip(),
-            hypervisor_password=str(data.get("hypervisor_password", "")),
+            hypervisor_password="",
             hypervisor_vm_name=str(data.get("hypervisor_vm_name", "")).strip(),
             wrapper_command=str(data.get("wrapper_command", "")).strip(),
             auto_test_on_load=_as_bool(data.get("auto_test_on_load", True)),
@@ -117,9 +125,17 @@ class ConnectionProfile:
     def to_public_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         for key in SENSITIVE_KEYS:
-            if payload.get(key):
-                payload[key] = ""
-            payload[f"{key}_set"] = bool(asdict(self).get(key))
+            secret_present = bool(asdict(self).get(key))
+            payload[key] = ""
+            payload[f"{key}_set"] = secret_present
+        return payload
+
+    def to_session_dict(self) -> dict[str, Any]:
+        """Serialize profile for the session cookie without passwords."""
+
+        payload = asdict(self)
+        for key in SENSITIVE_KEYS:
+            payload[key] = ""
         return payload
 
     def to_form_dict(self) -> dict[str, Any]:
@@ -144,15 +160,51 @@ def parse_hypervisor_type(value: str) -> HypervisorType:
         return HypervisorType.VMWARE
 
 
+def ensure_secret_id(session: dict[str, Any]) -> str:
+    secret_id = session.get(SESSION_SECRET_ID_KEY)
+    if isinstance(secret_id, str) and secret_id:
+        return secret_id
+    secret_id = secrets.token_urlsafe(24)
+    session[SESSION_SECRET_ID_KEY] = secret_id
+    return secret_id
+
+
 def load_session_profile(session: dict[str, Any], settings: Settings) -> ConnectionProfile:
     stored = session.get("connection_profile")
     if isinstance(stored, dict) and stored.get("ldap_host"):
-        return ConnectionProfile.from_mapping(stored)
-    return ConnectionProfile.from_settings(settings)
+        profile = ConnectionProfile.from_mapping(stored)
+    else:
+        profile = ConnectionProfile.from_settings(settings)
+
+    secret_id = ensure_secret_id(session)
+    # Migrate any legacy passwords still sitting in the session cookie into the vault.
+    if isinstance(stored, dict):
+        legacy_ldap = str(stored.get("ldap_password") or "")
+        legacy_hv = str(stored.get("hypervisor_password") or "")
+        if legacy_ldap or legacy_hv:
+            secret_store.put(
+                secret_id,
+                ldap_password=legacy_ldap or None,
+                hypervisor_password=legacy_hv or None,
+            )
+            session["connection_profile"] = profile.to_session_dict()
+
+    return secret_store.apply_to_profile(secret_id, profile)
 
 
 def save_session_profile(session: dict[str, Any], profile: ConnectionProfile) -> None:
-    session["connection_profile"] = asdict(profile)
+    secret_id = ensure_secret_id(session)
+    secret_store.capture_from_profile(secret_id, profile)
+    # Keep in-memory passwords on the returned profile callers may reuse, but
+    # never write them into the signed session cookie.
+    session["connection_profile"] = profile.to_session_dict()
+
+
+def clear_session_secrets(session: dict[str, Any]) -> None:
+    secret_id = session.get(SESSION_SECRET_ID_KEY)
+    if isinstance(secret_id, str) and secret_id:
+        secret_store.clear(secret_id)
+    session.pop(SESSION_SECRET_ID_KEY, None)
 
 
 def redact_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
@@ -162,17 +214,17 @@ def redact_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
     ldap = redacted.get("ldap")
     if isinstance(ldap, dict):
         ldap = dict(ldap)
-        if ldap.get("password"):
-            ldap["password"] = ""
-        ldap["password_set"] = bool(state.get("ldap", {}).get("password"))
+        password_was_set = bool(ldap.get("password")) or bool(ldap.get("password_set"))
+        ldap["password"] = ""
+        ldap["password_set"] = password_was_set
         redacted["ldap"] = ldap
 
     hypervisor = redacted.get("hypervisor")
     if isinstance(hypervisor, dict):
         hypervisor = dict(hypervisor)
-        if hypervisor.get("password"):
-            hypervisor["password"] = ""
-        hypervisor["password_set"] = bool(state.get("hypervisor", {}).get("password"))
+        password_was_set = bool(hypervisor.get("password")) or bool(hypervisor.get("password_set"))
+        hypervisor["password"] = ""
+        hypervisor["password_set"] = password_was_set
         redacted["hypervisor"] = hypervisor
 
     return redacted

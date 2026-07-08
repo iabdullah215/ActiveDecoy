@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import sys
 
+from app.core.audit import AUDIT_LOGGER_NAME
+
 
 def configure_logging(*, debug: bool = False) -> None:
     """Configure root logging once for the application process."""
@@ -13,6 +15,7 @@ def configure_logging(*, debug: bool = False) -> None:
     root = logging.getLogger()
     if root.handlers:
         root.setLevel(level)
+        logging.getLogger(AUDIT_LOGGER_NAME).setLevel(logging.INFO)
         return
 
     handler = logging.StreamHandler(sys.stdout)
@@ -30,3 +33,4 @@ def configure_logging(*, debug: bool = False) -> None:
     logging.getLogger("neo4j").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger(AUDIT_LOGGER_NAME).setLevel(logging.INFO)

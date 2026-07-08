@@ -77,12 +77,30 @@ class ConnectionSessionTests(unittest.TestCase):
         session: dict = {}
         profile = ConnectionProfile(ldap_host="dc01.lab.local", ldap_password="test-secret")
         save_session_profile(session, profile)
+        self.assertEqual(session["connection_profile"]["ldap_password"], "")
+        self.assertIn("connection_secret_id", session)
+
         loaded = load_session_profile(session, get_settings())
         self.assertEqual(loaded.ldap_host, "dc01.lab.local")
         self.assertEqual(loaded.ldap_password, "test-secret")
         public = loaded.to_public_dict()
         self.assertEqual(public["ldap_password"], "")
         self.assertTrue(public["ldap_password_set"])
+
+    def test_legacy_session_passwords_are_migrated(self) -> None:
+        from app.core.config import get_settings
+        from app.core.connection_profile import load_session_profile
+
+        session = {
+            "connection_profile": {
+                "ldap_host": "dc01.lab.local",
+                "ldap_password": "legacy-secret",
+                "hypervisor_type": "vmware",
+            }
+        }
+        loaded = load_session_profile(session, get_settings())
+        self.assertEqual(loaded.ldap_password, "legacy-secret")
+        self.assertEqual(session["connection_profile"]["ldap_password"], "")
 
 
 def _httpx_available() -> bool:

@@ -22,7 +22,8 @@ import uvicorn
 from app.api.connection import build_connection_router
 from app.api.graph import build_graph_router
 from app.api.monitoring import build_monitoring_router
-from app.core.config import get_settings, log_settings_summary
+from app.core.audit import audit_event, client_ip
+from app.core.config import enforce_startup_guards, get_settings, log_settings_summary
 from app.core.connection_manager import (
     ConnectionManager,
     HypervisorType,
@@ -30,6 +31,7 @@ from app.core.connection_manager import (
 )
 from app.core.connection_profile import (
     ConnectionProfile,
+    clear_session_secrets,
     load_session_profile,
     redact_bridge_state,
     save_session_profile,
@@ -38,6 +40,7 @@ from app.core.deception_engine import DeceptionEngine, deployment_to_dict
 from app.core.graph_store import GraphStore
 from app.core.logging_config import configure_logging
 from app.core.monitoring_engine import MonitoringEngine
+from app.core.rate_limit import SlidingWindowRateLimiter
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -57,10 +60,15 @@ connection_manager = ConnectionManager()
 deception_engine = DeceptionEngine(seed=42)
 graph_store = GraphStore(settings)
 monitoring_engine = MonitoringEngine(seed=42)
+login_rate_limiter = SlidingWindowRateLimiter(
+    max_attempts=settings.login_rate_limit,
+    window_seconds=settings.login_rate_window_seconds,
+)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    enforce_startup_guards(settings)
     log_settings_summary(settings)
     graph_health = graph_store.health()
     if graph_health.connected:
@@ -74,13 +82,18 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("ActiveDecoy shutdown complete.")
 
 
-app = FastAPI(title="ActiveDecoy", version="0.3.1", lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+app = FastAPI(title="ActiveDecoy", version="0.4.0", lifespan=lifespan)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    same_site="lax",
+    https_only=False,
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(settings.cors_origins),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -194,13 +207,47 @@ def login_submit(
     raw_password = password
     username = _normalize_credential(username)
     password = _normalize_credential(password)
+    ip = client_ip(request)
+
+    limit = login_rate_limiter.check(ip)
+    if not limit.allowed:
+        audit_event(
+            "login",
+            actor=username or "anonymous",
+            outcome="rate_limited",
+            request=request,
+            retry_after=limit.retry_after,
+        )
+        response = _render(
+            request,
+            "login.html",
+            title="Login",
+            error=f"Too many login attempts. Try again in {limit.retry_after}s.",
+        )
+        response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
+        response.headers["Retry-After"] = str(limit.retry_after)
+        return response
+
+    login_rate_limiter.hit(ip)
+
     if username == settings.admin_username and password == settings.admin_password:
+        login_rate_limiter.reset(ip)
         request.session["authenticated"] = True
         request.session["username"] = username
         request.session["bridge_state"] = bridge_state_to_dict(connection_manager.get_bridge_state())
         if not request.session.get("connection_profile"):
             save_session_profile(request.session, ConnectionProfile.from_settings(settings))
+        audit_event("login", actor=username, outcome="success", request=request)
         return RedirectResponse(url=HOME_PATH, status_code=status.HTTP_303_SEE_OTHER)
+
+    audit_event(
+        "login",
+        actor=username or "anonymous",
+        outcome="failure",
+        request=request,
+        username_length=len(raw_username),
+        password_length=len(raw_password),
+    )
     logger.warning(
         "Login rejected: username=%r password_length=%d username_length=%d",
         raw_username,
@@ -212,7 +259,10 @@ def login_submit(
 
 @app.get("/logout")
 def logout(request: Request) -> RedirectResponse:
+    actor = str(request.session.get("username") or "anonymous")
+    clear_session_secrets(request.session)
     request.session.clear()
+    audit_event("logout", actor=actor, outcome="success", request=request)
     return RedirectResponse(url=LOGIN_PATH, status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -331,17 +381,30 @@ def api_deception_deploy(
     sync_to_graph: Annotated[str, Form()] = "false",
 ) -> dict[str, Any]:
     _require_auth_api(request)
-    deployment = deception_engine.build_deployment(modules or [])
+    selected = modules or []
+    deployment = deception_engine.build_deployment(selected)
     payload = deployment_to_dict(deployment)
     request.session["last_deployment"] = payload
     payload["monitored_objects"] = monitoring_engine.register_deployment(payload["objects"])
 
-    if str(sync_to_graph).lower() in {"1", "true", "yes", "on"}:
+    sync_enabled = str(sync_to_graph).lower() in {"1", "true", "yes", "on"}
+    if sync_enabled:
         graph_result = graph_store.execute_queries(payload.get("cypher_queries", []))
         payload["graph_sync"] = graph_result
         if graph_result["success"]:
             payload["graph_node_count"] = graph_store.health().node_count
 
+    actor = str(request.session.get("username") or "anonymous")
+    audit_event(
+        "deception.deploy",
+        actor=actor,
+        outcome="success",
+        request=request,
+        modules=selected,
+        object_count=len(payload.get("objects", [])),
+        sync_to_graph=sync_enabled,
+        graph_sync_ok=(payload.get("graph_sync") or {}).get("success") if sync_enabled else None,
+    )
     return payload
 
 

@@ -76,6 +76,7 @@ Open `http://127.0.0.1:8000` and sign in with credentials from `.env`. Details i
 - The project uses Jinja2 templates and a custom CSS shell for the dashboard.
 - The backend keeps AD and hypervisor state in the user session during the lab workflow.
 - Startup validates configuration and emits warnings for default secrets / missing Neo4j password.
+- Login is rate-limited; LDAP/hypervisor passwords stay server-side (not in the session cookie).
 - Optional lab connectors (`pyvmomi`, VirtualBox bindings, `pywin32`, `impacket`) are documented in `requirements.txt` and SETUP.md — install only what you need.
 - The code is designed to be extended with real connectors and policy enforcement in your own environment.
 

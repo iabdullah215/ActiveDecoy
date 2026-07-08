@@ -152,4 +152,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR:
 
 - Do not commit `.env`.
 - Change `SESSION_SECRET`, `ADMIN_PASSWORD`, and `NEO4J_PASSWORD` before shared lab use.
-- CORS remains open for local lab convenience; harden it in Chunk 2.
+- Set `ENFORCE_SECURE_DEFAULTS=true` on shared labs so the app refuses to start with default secrets.
+- Restrict `CORS_ORIGINS` to the console URLs you actually use (default: localhost only).
+- Login is rate-limited (`LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW_SECONDS`).
+- LDAP and hypervisor passwords are kept in a server-side secret store — not in the signed session cookie.
+- Sensitive actions (login, logout, connection save/test, deception deploy) emit JSON audit lines on logger `activedecoy.audit`.
+- OIDC/LDAP console login is not implemented yet; admin credentials remain env-based for the lab console.
