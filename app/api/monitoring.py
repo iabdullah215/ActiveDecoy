@@ -45,6 +45,9 @@ def build_monitoring_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
+    def _actor(request: Request) -> str:
+        return str(request.session.get("username") or "anonymous")
+
     def _ensure_registered(request: Request) -> None:
         if monitoring_engine.registered_honey_objects:
             return
@@ -187,6 +190,13 @@ def build_monitoring_router(
             created = monitoring_engine.simulate_honey_interaction(count)
         except ValueError as exc:
             return {"success": False, "message": str(exc), "events": []}
+        audit_event(
+            "monitoring.simulate",
+            actor=_actor(request),
+            outcome="success",
+            request=request,
+            count=len(created),
+        )
         return {
             "success": True,
             "message": f"Generated {len(created)} honey-interaction event(s).",
@@ -203,8 +213,22 @@ def build_monitoring_router(
         require_auth(request)
         if str(ack_all).lower() in {"1", "true", "yes", "on"}:
             updated = monitoring_engine.acknowledge_all()
+            audit_event(
+                "monitoring.acknowledge_all",
+                actor=_actor(request),
+                outcome="success",
+                request=request,
+                updated=updated,
+            )
             return {"success": True, "updated": updated, "stats": monitoring_engine.stats()}
         success = monitoring_engine.acknowledge(uid)
+        audit_event(
+            "monitoring.acknowledge",
+            actor=_actor(request),
+            outcome="success" if success else "failure",
+            request=request,
+            uid=uid,
+        )
         return {
             "success": success,
             "updated": 1 if success else 0,

@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, Request
 
+from app.core.audit import audit_event
 from app.core.deception_engine import DeceptionEngine, deployment_to_dict
 from app.core.graph_store import AD_LABELS, GRAPH_LABELS, HONEY_LABELS, GraphStore
 from app.core.graph_view import resolve_graph_kind, topology_payload
@@ -58,6 +59,9 @@ def build_graph_router(
     require_auth,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/graph", tags=["graph"])
+
+    def _actor(request: Request) -> str:
+        return str(request.session.get("username") or "anonymous")
 
     @router.get("/health")
     def graph_health(request: Request) -> dict[str, Any]:
@@ -216,6 +220,14 @@ def build_graph_router(
         result["node_count"] = health.node_count if result["success"] else 0
         result["honey_count"] = health.honey_count if result["success"] else 0
         result["ad_count"] = health.ad_count if result["success"] else 0
+        audit_event(
+            "graph.sync",
+            actor=_actor(request),
+            outcome="success" if result["success"] else "failure",
+            request=request,
+            executed=result.get("executed", 0),
+            node_count=result["node_count"],
+        )
         return result
 
     @router.post("/import-sample")
@@ -226,6 +238,14 @@ def build_graph_router(
         require_auth(request)
         if not cypher_text.strip():
             return {"success": False, "message": "No Cypher content provided."}
-        return graph_store.import_cypher_file(cypher_text)
+        result = graph_store.import_cypher_file(cypher_text)
+        audit_event(
+            "graph.import_sample",
+            actor=_actor(request),
+            outcome="success" if result.get("success") else "failure",
+            request=request,
+            executed=result.get("executed", 0),
+        )
+        return result
 
     return router
