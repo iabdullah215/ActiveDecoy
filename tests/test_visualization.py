@@ -128,6 +128,8 @@ class VisualizationApiTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn("data-graph-canvas", page.text)
         self.assertIn("Graph filters", page.text)
+        self.assertIn("data-action=\"viz-fullscreen\"", page.text)
+        self.assertIn("data-action=\"viz-reset-view\"", page.text)
 
     def test_nodes_endpoint_accepts_filters(self) -> None:
         self._login()

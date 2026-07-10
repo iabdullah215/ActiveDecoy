@@ -497,12 +497,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const vizFilters = document.querySelector("[data-viz-filters]");
   const graphCanvas = document.querySelector("[data-graph-canvas]");
-  if (vizFilters && graphCanvas) {
+  if (vizFilters && graphCanvas && graphPanel) {
     const tableBody = document.querySelector("[data-viz-table]");
     const stateBadge = document.querySelector("[data-viz-state]");
     const sourceBadge = document.querySelector("[data-viz-source]");
     const messageEl = document.querySelector("[data-viz-message]");
     const selectionEl = document.querySelector("[data-viz-selection]");
+    const fullscreenLabel = document.querySelector("[data-viz-fullscreen-label]");
     const ctx = graphCanvas.getContext("2d");
 
     const colorFor = (node) => {
@@ -518,20 +519,57 @@ document.addEventListener("DOMContentLoaded", () => {
       edges: [],
       positions: new Map(),
       dragId: null,
+      panning: false,
+      panStart: null,
+      hoverId: null,
+      selectedId: null,
       panX: 0,
       panY: 0,
       scale: 1,
       simTicks: 0,
     };
 
+    const canvasHeight = () => (document.fullscreenElement === graphPanel ? Math.max(480, window.innerHeight - 48) : 520);
+
     const resizeCanvas = () => {
-      const rect = graphCanvas.parentElement.getBoundingClientRect();
+      const rect = graphPanel.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
+      const height = canvasHeight();
       graphCanvas.width = Math.max(640, Math.floor(rect.width * dpr));
-      graphCanvas.height = Math.floor(520 * dpr);
+      graphCanvas.height = Math.floor(height * dpr);
       graphCanvas.style.width = `${Math.max(640, Math.floor(rect.width))}px`;
-      graphCanvas.style.height = "520px";
+      graphCanvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const resetView = () => {
+      state.panX = 0;
+      state.panY = 0;
+      state.scale = 1;
+    };
+
+    const zoomBy = (factor) => {
+      state.scale = Math.min(3, Math.max(0.35, state.scale * factor));
+    };
+
+    const updateFullscreenLabel = () => {
+      const active = document.fullscreenElement === graphPanel;
+      if (fullscreenLabel) fullscreenLabel.textContent = active ? "Exit full screen" : "Full screen";
+      graphPanel.classList.toggle("is-fullscreen", active);
+      resizeCanvas();
+      draw();
+    };
+
+    const toggleFullscreen = async () => {
+      try {
+        if (document.fullscreenElement === graphPanel) {
+          await document.exitFullscreen();
+        } else {
+          await graphPanel.requestFullscreen();
+        }
+      } catch (error) {
+        if (messageEl) messageEl.textContent = `Full screen unavailable: ${error.message}`;
+      }
     };
 
     const filterQuery = () => {
@@ -549,7 +587,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const layoutNodes = (nodes) => {
       const width = graphCanvas.clientWidth || 900;
-      const height = 520;
+      const height = canvasHeight();
       const cx = width / 2;
       const cy = height / 2;
       nodes.forEach((node, index) => {
@@ -610,7 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const draw = () => {
       const width = graphCanvas.clientWidth || 900;
-      const height = 520;
+      const height = canvasHeight();
       ctx.clearRect(0, 0, width, height);
       ctx.save();
       ctx.translate(state.panX, state.panY);
@@ -631,17 +669,28 @@ document.addEventListener("DOMContentLoaded", () => {
       state.nodes.forEach((node) => {
         const p = state.positions.get(node.id);
         if (!p) return;
-        const radius = node.object_type?.startsWith("Honey") ? 11 : 9;
+        const isHoney = node.object_type?.startsWith("Honey");
+        const radius = isHoney ? 11 : 9;
+        const selected = state.selectedId === node.id;
+        const hovered = state.hoverId === node.id;
+
+        if (selected || hovered) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius + 6, 0, Math.PI * 2);
+          ctx.fillStyle = selected ? "rgba(59, 130, 246, 0.22)" : "rgba(148, 163, 184, 0.16)";
+          ctx.fill();
+        }
+
         ctx.beginPath();
         ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.fillStyle = colorFor(node);
         ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.lineWidth = selected ? 3 : 2;
+        ctx.strokeStyle = selected ? "#93c5fd" : "rgba(15, 23, 42, 0.85)";
         ctx.stroke();
         ctx.fillStyle = "rgba(226, 232, 240, 0.95)";
-        ctx.font = "11px Inter, system-ui, sans-serif";
-        ctx.fillText(String(node.name || "").slice(0, 22), p.x + 12, p.y + 4);
+        ctx.font = `${selected ? 12 : 11}px Inter, system-ui, sans-serif`;
+        ctx.fillText(String(node.name || "").slice(0, 28), p.x + 12, p.y + 4);
       });
       ctx.restore();
     };
@@ -740,42 +789,83 @@ document.addEventListener("DOMContentLoaded", () => {
       return null;
     };
 
+    const selectNode = (node) => {
+      state.selectedId = node?.id || null;
+      if (selectionEl) {
+        selectionEl.textContent = node
+          ? `${node.name} · ${node.object_type} · ${node.role || "no role"}`
+          : "No node selected.";
+      }
+    };
+
     graphCanvas.addEventListener("pointerdown", (event) => {
       const pos = eventPos(event);
       const hit = findNodeAt(pos.x, pos.y);
       if (hit) {
         state.dragId = hit.id;
+        selectNode(hit);
         graphCanvas.classList.add("is-dragging");
-        if (selectionEl) {
-          selectionEl.textContent = `${hit.name} · ${hit.object_type} · ${hit.role || "no role"}`;
-        }
         graphCanvas.setPointerCapture(event.pointerId);
+        return;
       }
+      state.panning = true;
+      state.panStart = { x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY };
+      graphCanvas.classList.add("is-panning");
+      graphCanvas.setPointerCapture(event.pointerId);
     });
 
     graphCanvas.addEventListener("pointermove", (event) => {
-      if (!state.dragId) return;
       const pos = eventPos(event);
-      const p = state.positions.get(state.dragId);
-      if (!p) return;
-      p.x = pos.x;
-      p.y = pos.y;
-      p.vx = 0;
-      p.vy = 0;
+      if (state.dragId) {
+        const p = state.positions.get(state.dragId);
+        if (!p) return;
+        p.x = pos.x;
+        p.y = pos.y;
+        p.vx = 0;
+        p.vy = 0;
+        return;
+      }
+      if (state.panning && state.panStart) {
+        state.panX = state.panStart.panX + (event.clientX - state.panStart.x);
+        state.panY = state.panStart.panY + (event.clientY - state.panStart.y);
+        return;
+      }
+      const hover = findNodeAt(pos.x, pos.y);
+      state.hoverId = hover?.id || null;
+      graphCanvas.classList.toggle("is-hover-node", Boolean(hover));
     });
 
-    const endDrag = () => {
+    const endPointer = () => {
       state.dragId = null;
-      graphCanvas.classList.remove("is-dragging");
+      state.panning = false;
+      state.panStart = null;
+      graphCanvas.classList.remove("is-dragging", "is-panning");
     };
-    graphCanvas.addEventListener("pointerup", endDrag);
-    graphCanvas.addEventListener("pointercancel", endDrag);
+    graphCanvas.addEventListener("pointerup", endPointer);
+    graphCanvas.addEventListener("pointercancel", endPointer);
 
     graphCanvas.addEventListener("wheel", (event) => {
       event.preventDefault();
-      const delta = event.deltaY > 0 ? 0.92 : 1.08;
-      state.scale = Math.min(2.5, Math.max(0.45, state.scale * delta));
+      zoomBy(event.deltaY > 0 ? 0.92 : 1.08);
     }, { passive: false });
+
+    graphCanvas.addEventListener("dblclick", (event) => {
+      const pos = eventPos(event);
+      if (!findNodeAt(pos.x, pos.y)) resetView();
+    });
+
+    document.querySelector('[data-action="viz-fullscreen"]')?.addEventListener("click", toggleFullscreen);
+    document.querySelector('[data-action="viz-reset-view"]')?.addEventListener("click", resetView);
+    document.querySelector('[data-action="viz-zoom-in"]')?.addEventListener("click", () => zoomBy(1.15));
+    document.querySelector('[data-action="viz-zoom-out"]')?.addEventListener("click", () => zoomBy(0.87));
+    document.addEventListener("fullscreenchange", updateFullscreenLabel);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && document.fullscreenElement === graphPanel) return;
+      if (document.fullscreenElement !== graphPanel) return;
+      if (event.key === "+" || event.key === "=") zoomBy(1.1);
+      if (event.key === "-") zoomBy(0.9);
+      if (event.key === "0") resetView();
+    });
 
     vizFilters.addEventListener("change", loadTopology);
     vizFilters.addEventListener("input", (event) => {
@@ -791,6 +881,7 @@ document.addEventListener("DOMContentLoaded", () => {
       resizeCanvas();
       draw();
     });
+    updateFullscreenLabel();
     loadTopology();
     animate();
   }
