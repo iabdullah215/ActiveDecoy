@@ -1,0 +1,79 @@
+# ActiveDecoy authorized lab directory — OpenLDAP bootstrap (LDAP_LAB_MODE=true)
+
+dn: ou=Lab,dc=lab,dc=local
+objectClass: organizationalUnit
+ou: Lab
+
+dn: ou=Honey,ou=Lab,dc=lab,dc=local
+objectClass: organizationalUnit
+ou: Honey
+
+dn: uid=jsmith,ou=Lab,dc=lab,dc=local
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: jsmith
+cn: John Smith
+sn: Smith
+mail: jsmith@lab.local
+description: Finance analyst workstation user
+
+dn: uid=a.patel,ou=Lab,dc=lab,dc=local
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: a.patel
+cn: Alex Patel
+sn: Patel
+mail: a.patel@lab.local
+description: IT operations
+
+dn: uid=svc-backup,ou=Lab,dc=lab,dc=local
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: svc-backup
+cn: Backup Service
+sn: Service
+description: Backup service account
+
+dn: cn=Domain Admins,ou=Lab,dc=lab,dc=local
+objectClass: groupOfNames
+objectClass: top
+cn: Domain Admins
+description: Lab administrators
+member: uid=jsmith,ou=Lab,dc=lab,dc=local
+
+dn: cn=Workstations,ou=Lab,dc=lab,dc=local
+objectClass: groupOfNames
+objectClass: top
+cn: Workstations
+description: Workstation operators
+member: uid=a.patel,ou=Lab,dc=lab,dc=local
+
+dn: cn=WKS-031,ou=Lab,dc=lab,dc=local
+objectClass: ipHost
+objectClass: device
+objectClass: top
+cn: WKS-031
+ipHostNumber: 10.10.10.31
+description: Windows 11 workstation
+
+dn: cn=FILE03,ou=Lab,dc=lab,dc=local
+objectClass: ipHost
+objectClass: device
+objectClass: top
+cn: FILE03
+ipHostNumber: 10.10.10.53
+description: Windows Server 2022 file server
+
+dn: cn=VPN-GW01,ou=Lab,dc=lab,dc=local
+objectClass: ipHost
+objectClass: device
+objectClass: top
+cn: VPN-GW01
+ipHostNumber: 10.10.10.1
+description: VPN gateway appliance

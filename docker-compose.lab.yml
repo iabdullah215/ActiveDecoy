@@ -1,0 +1,43 @@
+# Lab overlay — authorized local testing with LDAP + hypervisor bridge.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.lab.yml up --build -d
+
+services:
+  lab-ldap:
+    build: ./deploy/lab-ldap
+    container_name: activedecoy-lab-ldap
+    environment:
+      LDAP_ORGANISATION: Lab
+      LDAP_DOMAIN: lab.local
+      LDAP_BASE_DN: dc=lab,dc=local
+      LDAP_ADMIN_PASSWORD: ${LAB_LDAP_ADMIN_PASSWORD:-ActiveDecoyLab!2026}
+      LDAP_TLS: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b dc=lab,dc=local -s base '(objectclass=*)' dn | grep -q 'dc=lab,dc=local'"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    networks:
+      activedecoy:
+        aliases:
+          - dc01.lab.local
+          - ldap.lab.local
+
+  app:
+    depends_on:
+      lab-ldap:
+        condition: service_healthy
+    environment:
+      LDAP_HOST: dc01.lab.local
+      LDAP_PORT: "389"
+      LDAP_BIND_DN: cn=admin,dc=lab,dc=local
+      LDAP_PASSWORD: ${LAB_LDAP_ADMIN_PASSWORD:-ActiveDecoyLab!2026}
+      LDAP_BASE_DN: dc=lab,dc=local
+      LDAP_LAB_MODE: "true"
+      HYPERVISOR_TYPE: utm
+      HYPERVISOR_VM_NAME: Washu-DC
+      HYPERVISOR_WRAPPER_COMMAND: /app/scripts/lab_hypervisor_health.sh
+      AD_HONEY_OU: OU=Honey,OU=Lab,DC=lab,DC=local
+      AD_MONITORED_DOMAINS: lab.local
+    volumes:
+      - ./scripts/lab_hypervisor_health.sh:/app/scripts/lab_hypervisor_health.sh:ro

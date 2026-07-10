@@ -23,6 +23,7 @@ def enumerate_directory(
     engine = enumerator or DirectoryEnumerator(
         page_size=settings.ldap_page_size,
         max_objects=settings.ldap_max_objects,
+        lab_mode=settings.ldap_lab_mode,
     )
     return engine.enumerate(config)
 

@@ -107,6 +107,32 @@ class DirectoryEnumerator:
     COMPUTER_FILTER = "(objectClass=computer)"
     TRUST_FILTER = "(objectClass=trustedDomain)"
 
+    LAB_USER_FILTER = "(objectClass=inetOrgPerson)"
+    LAB_GROUP_FILTER = "(objectClass=groupOfNames)"
+    LAB_COMPUTER_FILTER = "(|(objectClass=ipHost)(objectClass=device))"
+    LAB_TRUST_FILTER = "(objectClass=trustedDomain)"
+
+    LAB_USER_ATTRS = ["uid", "cn", "mail", "description", "memberOf"]
+    LAB_GROUP_ATTRS = ["cn", "description", "member"]
+    LAB_COMPUTER_ATTRS = ["cn", "ipHostNumber", "description"]
+
+    def _attrs_for_label(self, label: str) -> list[str]:
+        if not self.lab_mode:
+            if label == "users":
+                return self.USER_ATTRS
+            if label == "groups":
+                return self.GROUP_ATTRS
+            if label == "computers":
+                return self.COMPUTER_ATTRS
+            return self.TRUST_ATTRS
+        if label == "users":
+            return self.LAB_USER_ATTRS
+        if label == "groups":
+            return self.LAB_GROUP_ATTRS
+        if label == "computers":
+            return self.LAB_COMPUTER_ATTRS
+        return self.TRUST_ATTRS
+
     USER_ATTRS = [
         "distinguishedName",
         "sAMAccountName",
@@ -141,9 +167,20 @@ class DirectoryEnumerator:
         "trustAttributes",
     ]
 
-    def __init__(self, *, page_size: int = 200, max_objects: int = 500) -> None:
+    def __init__(self, *, page_size: int = 200, max_objects: int = 500, lab_mode: bool = False) -> None:
         self.page_size = max(1, page_size)
         self.max_objects = max(1, max_objects)
+        self.lab_mode = lab_mode
+
+    def _filters(self) -> tuple[str, str, str, str]:
+        if self.lab_mode:
+            return (
+                self.LAB_USER_FILTER,
+                self.LAB_GROUP_FILTER,
+                self.LAB_COMPUTER_FILTER,
+                self.LAB_TRUST_FILTER,
+            )
+        return self.USER_FILTER, self.GROUP_FILTER, self.COMPUTER_FILTER, self.TRUST_FILTER
 
     def enumerate(self, config: LDAPConfig) -> DirectorySnapshot:
         debug: list[str] = []
@@ -171,6 +208,7 @@ class DirectoryEnumerator:
                 raise RuntimeError("Could not determine LDAP base DN. Set LDAP base DN and retry.")
 
             domain = self._domain_from_dn(base_dn)
+            user_filter, group_filter, computer_filter, trust_filter = self._filters()
             truncated = False
             users: list[DirectoryObject] = []
             groups: list[DirectoryObject] = []
@@ -182,8 +220,8 @@ class DirectoryEnumerator:
                 connection,
                 ldap3,
                 base_dn,
-                self.USER_FILTER,
-                self.USER_ATTRS,
+                user_filter,
+                self._attrs_for_label("users"),
                 debug,
                 label="users",
             )
@@ -199,8 +237,8 @@ class DirectoryEnumerator:
                 connection,
                 ldap3,
                 base_dn,
-                self.GROUP_FILTER,
-                self.GROUP_ATTRS,
+                group_filter,
+                self._attrs_for_label("groups"),
                 debug,
                 label="groups",
             )
@@ -216,8 +254,8 @@ class DirectoryEnumerator:
                 connection,
                 ldap3,
                 base_dn,
-                self.COMPUTER_FILTER,
-                self.COMPUTER_ATTRS,
+                computer_filter,
+                self._attrs_for_label("computers"),
                 debug,
                 label="computers",
             )
@@ -227,15 +265,19 @@ class DirectoryEnumerator:
                 if obj:
                     computers.append(obj)
 
-            trust_result = self._paged_search(
-                connection,
-                ldap3,
-                base_dn,
-                self.TRUST_FILTER,
-                self.TRUST_ATTRS,
-                debug,
-                label="trusts",
-            )
+            if self.lab_mode:
+                trust_result = {"entries": [], "truncated": False}
+                debug.append("trusts: skipped in lab LDAP mode.")
+            else:
+                trust_result = self._paged_search(
+                    connection,
+                    ldap3,
+                    base_dn,
+                    trust_filter,
+                    self._attrs_for_label("trusts"),
+                    debug,
+                    label="trusts",
+                )
             truncated = truncated or trust_result["truncated"]
             for entry in trust_result["entries"]:
                 trust = self._trust_from_entry(entry)
@@ -280,6 +322,17 @@ class DirectoryEnumerator:
         *,
         label: str,
     ) -> dict[str, Any]:
+        if self.lab_mode:
+            return self._simple_search(
+                connection,
+                ldap3,
+                base_dn,
+                search_filter,
+                self._attrs_for_label(label),
+                debug,
+                label=label,
+            )
+
         entries: list[Any] = []
         truncated = False
         cookie: Any = True
@@ -316,6 +369,33 @@ class DirectoryEnumerator:
         debug.append(f"{label}: collected {len(entries)} entr{'y' if len(entries) == 1 else 'ies'} across {pages} page(s).")
         return {"entries": entries, "truncated": truncated}
 
+    def _simple_search(
+        self,
+        connection: Any,
+        ldap3: Any,
+        base_dn: str,
+        search_filter: str,
+        attributes: list[str],
+        debug: list[str],
+        *,
+        label: str,
+    ) -> dict[str, Any]:
+        """Non-paged LDAP search for OpenLDAP lab directories."""
+
+        conn_ok = connection.search(
+            search_base=base_dn,
+            search_filter=search_filter,
+            search_scope=ldap3.SUBTREE,
+            attributes=attributes,
+            size_limit=self.max_objects,
+        )
+        entries = list(connection.entries)[: self.max_objects]
+        truncated = len(connection.entries) > self.max_objects
+        if not conn_ok and not entries:
+            debug.append(f"{label}: search returned no entries.")
+        debug.append(f"{label}: collected {len(entries)} entr{'y' if len(entries) == 1 else 'ies'} (lab mode).")
+        return {"entries": entries, "truncated": truncated}
+
     def _discover_base_dn(self, connection: Any, ldap3: Any, debug: list[str]) -> str:
         connection.search(
             search_base="",
@@ -331,9 +411,19 @@ class DirectoryEnumerator:
             debug.append(f"Discovered base DN from root DSE: {base}")
         return base
 
+    def _entry_dn(self, entry: Any) -> str:
+        dn = str(getattr(entry, "entry_dn", "") or "").strip()
+        if dn:
+            return dn
+        return self._attr(entry, "distinguishedName")
+
     def _user_from_entry(self, entry: Any) -> DirectoryObject | None:
-        dn = self._attr(entry, "distinguishedName")
-        name = self._attr(entry, "sAMAccountName") or self._cn_from_dn(dn)
+        dn = self._entry_dn(entry)
+        name = (
+            self._attr(entry, "sAMAccountName")
+            or self._attr(entry, "uid")
+            or self._cn_from_dn(dn)
+        )
         if not dn or not name:
             return None
         uac = self._as_int(self._attr(entry, "userAccountControl"))
@@ -352,7 +442,7 @@ class DirectoryEnumerator:
         )
 
     def _group_from_entry(self, entry: Any) -> DirectoryObject | None:
-        dn = self._attr(entry, "distinguishedName")
+        dn = self._entry_dn(entry)
         name = self._attr(entry, "sAMAccountName") or self._attr(entry, "cn") or self._cn_from_dn(dn)
         if not dn or not name:
             return None
@@ -368,8 +458,8 @@ class DirectoryEnumerator:
         )
 
     def _computer_from_entry(self, entry: Any) -> DirectoryObject | None:
-        dn = self._attr(entry, "distinguishedName")
-        name = (self._attr(entry, "sAMAccountName") or self._cn_from_dn(dn)).rstrip("$")
+        dn = self._entry_dn(entry)
+        name = (self._attr(entry, "sAMAccountName") or self._attr(entry, "cn") or self._cn_from_dn(dn)).rstrip("$")
         if not dn or not name:
             return None
         uac = self._as_int(self._attr(entry, "userAccountControl"))
@@ -378,8 +468,8 @@ class DirectoryEnumerator:
             name=name,
             dn=dn,
             attributes={
-                "dns_hostname": self._attr(entry, "dNSHostName"),
-                "operating_system": self._attr(entry, "operatingSystem"),
+                "dns_hostname": self._attr(entry, "dNSHostName") or self._attr(entry, "ipHostNumber"),
+                "operating_system": self._attr(entry, "operatingSystem") or self._attr(entry, "description"),
                 "description": self._attr(entry, "description"),
                 "enabled": self._account_enabled(uac),
                 "user_account_control": uac,

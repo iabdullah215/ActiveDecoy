@@ -127,11 +127,23 @@ class GraphStore:
         WHERE any(label IN labels(n) WHERE label IN $labels)
         RETURN elementId(n) AS id,
                labels(n)[0] AS object_type,
-               coalesce(n.name, n.sam_account_name, n.dn, '') AS name,
-               coalesce(n.role, n.object_type, labels(n)[0], '') AS role,
-               coalesce(n.color, CASE WHEN labels(n)[0] STARTS WITH 'Honey' THEN 'blue' ELSE 'slate' END) AS color,
-               coalesce(n.dn, '') AS dn,
-               coalesce(n.enabled, true) AS enabled
+               CASE
+                 WHEN n.name IS NOT NULL THEN n.name
+                 WHEN n.sam_account_name IS NOT NULL THEN n.sam_account_name
+                 WHEN n.dn IS NOT NULL THEN n.dn
+                 ELSE ''
+               END AS name,
+               CASE
+                 WHEN n.role IS NOT NULL THEN n.role
+                 ELSE labels(n)[0]
+               END AS role,
+               CASE
+                 WHEN n.color IS NOT NULL THEN n.color
+                 WHEN labels(n)[0] STARTS WITH 'Honey' THEN 'blue'
+                 ELSE 'slate'
+               END AS color,
+               CASE WHEN n.dn IS NOT NULL THEN n.dn ELSE '' END AS dn,
+               CASE WHEN n.enabled IS NOT NULL THEN n.enabled ELSE true END AS enabled
         ORDER BY object_type, name
         LIMIT $limit
         """
