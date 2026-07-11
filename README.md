@@ -111,7 +111,7 @@ Open `http://127.0.0.1:8000` and sign in with credentials from `.env`. Details i
 ## Collaborators
 
 - Muhammad Abdullah
-- Faisal
+- Muhammad Faisal Farooq
 - Mahavia
 - Abdullah Saif
 - Abdul Ahad Abbasi
