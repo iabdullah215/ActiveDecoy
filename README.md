@@ -23,7 +23,6 @@ This project is intended for educational, defensive, and explicitly authorized s
 | ![](docs/images/user-guide-safety-notes.jpg) | ![](docs/images/api-docs-connection.jpg) |
 | ![](docs/images/api-docs-graph-monitoring.jpg) | ![](docs/images/api-docs-policy-deception.jpg) |
 | ![](docs/images/api-docs-page-routes.jpg) | ![](docs/images/api-docs-schemas.jpg) |
-| ![](docs/images/api-docs-schema-models.jpg) |  |
 
 ## Repository Layout
 
