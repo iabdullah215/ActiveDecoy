@@ -50,6 +50,7 @@ def _settings(**overrides) -> Settings:
         connection_retry_delay=0.5,
         ldap_page_size=200,
         ldap_max_objects=500,
+        ldap_lab_mode=False,
         ad_honey_ou="",
         ad_honey_name_prefix="hw_",
         ad_require_name_prefix=True,

@@ -57,9 +57,19 @@
 
 <div class="grid-2 grid-2--wide-left">
   <div class="card">
-    <div class="card__header">
-      <h2 class="card__title">Interactive topology</h2>
-      <span class="badge badge--pending" data-viz-state>Loading</span>
+    <div class="card__header card__header--split">
+      <div class="card__header-main">
+        <h2 class="card__title">Interactive topology</h2>
+        <span class="badge badge--pending" data-viz-state>Loading</span>
+      </div>
+      <div class="graph-toolbar" data-viz-toolbar>
+        <button type="button" class="btn btn--ghost btn--xs" data-action="viz-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+        <button type="button" class="btn btn--ghost btn--xs" data-action="viz-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" class="btn btn--ghost btn--xs" data-action="viz-reset-view" title="Reset view" aria-label="Reset view">Reset</button>
+        <button type="button" class="btn btn--secondary btn--xs" data-action="viz-fullscreen" title="Full screen" aria-label="Full screen">
+          <span data-viz-fullscreen-label>Full screen</span>
+        </button>
+      </div>
     </div>
     <div class="card__body card__body--compact">
       <div class="graph-canvas-wrap" data-graph-panel>
@@ -69,6 +79,7 @@
           <span><i class="swatch swatch--ad"></i> Directory</span>
           <span><i class="swatch swatch--trust"></i> Trust</span>
         </div>
+        <div class="graph-hint" data-viz-hint>Drag nodes · drag background to pan · scroll to zoom · double-click to reset</div>
       </div>
       <p class="status-block__msg u-mt" data-viz-message>Drag nodes · scroll wheel zooms · click a node for details.</p>
       <p class="status-block__msg" data-viz-selection>No node selected.</p>

@@ -121,6 +121,7 @@ class Settings:
     connection_retry_delay: float
     ldap_page_size: int
     ldap_max_objects: int
+    ldap_lab_mode: bool
     ad_honey_ou: str
     ad_honey_name_prefix: str
     ad_require_name_prefix: bool
@@ -208,6 +209,7 @@ def get_settings() -> Settings:
         connection_retry_delay=float(_env("CONNECTION_RETRY_DELAY", "0.5")),
         ldap_page_size=int(_env("LDAP_PAGE_SIZE", "200")),
         ldap_max_objects=int(_env("LDAP_MAX_OBJECTS", "500")),
+        ldap_lab_mode=_env_bool("LDAP_LAB_MODE", "false"),
         ad_honey_ou=_env("AD_HONEY_OU", ""),
         ad_honey_name_prefix=_env("AD_HONEY_NAME_PREFIX", "hw_"),
         ad_require_name_prefix=_env_bool("AD_REQUIRE_NAME_PREFIX", "true"),

@@ -103,6 +103,12 @@ class DirectoryEnumeratorUnitTests(unittest.TestCase):
         unique = DirectoryEnumerator._dedupe_memberships(items)
         self.assertEqual(len(unique), 2)
 
+    def test_lab_mode_uses_openldap_filters(self) -> None:
+        enumerator = DirectoryEnumerator(lab_mode=True)
+        filters = enumerator._filters()
+        self.assertEqual(filters[0], DirectoryEnumerator.LAB_USER_FILTER)
+        self.assertEqual(filters[1], DirectoryEnumerator.LAB_GROUP_FILTER)
+
 
 class DirectoryServiceTests(unittest.TestCase):
     def test_run_directory_import_skips_graph(self) -> None:

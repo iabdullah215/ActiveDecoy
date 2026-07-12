@@ -914,6 +914,19 @@ a:hover { color: var(--primary-hover); }
     radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.06), transparent 40%),
     var(--bg-input);
   overflow: hidden;
+  min-height: 520px;
+}
+
+.graph-canvas-wrap:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  border-radius: 0;
+  border: none;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.12), transparent 50%),
+    radial-gradient(circle at 85% 75%, rgba(16, 185, 129, 0.08), transparent 45%),
+    var(--bg-base);
 }
 
 .graph-canvas-wrap canvas {
@@ -924,7 +937,55 @@ a:hover { color: var(--primary-hover); }
   touch-action: none;
 }
 
+.graph-canvas-wrap:fullscreen canvas {
+  height: calc(100vh - 48px);
+}
+
 .graph-canvas-wrap canvas.is-dragging { cursor: grabbing; }
+.graph-canvas-wrap canvas.is-panning { cursor: move; }
+.graph-canvas-wrap canvas.is-hover-node { cursor: pointer; }
+
+.card__header--split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card__header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.graph-hint {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 6px 12px;
+  pointer-events: none;
+  max-width: min(420px, calc(100% - 24px));
+  text-align: right;
+}
+
+.graph-canvas-wrap:fullscreen .graph-hint {
+  top: 16px;
+  right: 16px;
+}
 
 .graph-legend {
   position: absolute;
