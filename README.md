@@ -6,6 +6,25 @@ ActiveDecoy is an automated ITDR (Identity Threat Detection and Response) framew
 
 This project is intended for educational, defensive, and explicitly authorized security testing only. Do not deploy ActiveDecoy against systems or directories you do not own or manage.
 
+## Screenshots
+
+|  |  |
+|:---:|:---:|
+| ![](docs/images/login.jpg) | ![](docs/images/dashboard-overview.jpg) |
+| ![](docs/images/connection-ldap-directory.jpg) | ![](docs/images/connection-diagnostic-log.jpg) |
+| ![](docs/images/visualization-graph-filters.jpg) | ![](docs/images/visualization-topology.jpg) |
+| ![](docs/images/visualization-graph-canvas.jpg) | ![](docs/images/visualization-inventory-servers.jpg) |
+| ![](docs/images/visualization-inventory-users.jpg) | ![](docs/images/visualization-neodash.jpg) |
+| ![](docs/images/deception-console.jpg) | ![](docs/images/deception-deployment-modules.jpg) |
+| ![](docs/images/monitoring-console.jpg) | ![](docs/images/monitoring-event-stream.jpg) |
+| ![](docs/images/monitoring-event-feed.jpg) | ![](docs/images/monitoring-alert-triage.jpg) |
+| ![](docs/images/policy-overview.jpg) | ![](docs/images/policy-playbooks.jpg) |
+| ![](docs/images/policy-response-playbooks.jpg) | ![](docs/images/user-guide.jpg) |
+| ![](docs/images/user-guide-safety-notes.jpg) | ![](docs/images/api-docs-connection.jpg) |
+| ![](docs/images/api-docs-graph-monitoring.jpg) | ![](docs/images/api-docs-policy-deception.jpg) |
+| ![](docs/images/api-docs-page-routes.jpg) | ![](docs/images/api-docs-schemas.jpg) |
+| ![](docs/images/api-docs-schema-models.jpg) |  |
+
 ## Repository Layout
 
 ```text
