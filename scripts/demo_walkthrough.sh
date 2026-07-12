@@ -12,8 +12,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
-ADMIN_USER="${ADMIN_USERNAME:-HwatSauce}"
-ADMIN_PASS="${ADMIN_PASSWORD:-Active-Decoy!2026}"
+ADMIN_USER="${ADMIN_USERNAME:-admin}"
+ADMIN_PASS="${ADMIN_PASSWORD:-changeme-dev-only}"
 CHECK_ONLY=false
 
 for arg in "$@"; do

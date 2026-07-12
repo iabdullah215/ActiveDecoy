@@ -22,7 +22,7 @@ class EndToEndWorkflowTests(unittest.TestCase):
         self.client = TestClient(app)
         login = self.client.post(
             "/login",
-            data={"username": "HwatSauce", "password": "Active-Decoy!2026"},
+            data={"username": "admin", "password": "changeme-dev-only"},
             follow_redirects=False,
         )
         self.assertEqual(login.status_code, 303)

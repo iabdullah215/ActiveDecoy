@@ -37,8 +37,8 @@ class ProductionGuardTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             enforce_production_guards(
                 _production_settings(
-                    admin_username="HwatSauce",
-                    admin_password="Active-Decoy!2026",
+                    admin_username="admin",
+                    admin_password="changeme-dev-only",
                     console_auth_mode="ldap,env",
                 )
             )

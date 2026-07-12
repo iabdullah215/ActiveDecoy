@@ -31,7 +31,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 def main() -> int:
     load_dotenv(ROOT / ".env")
-    username = os.environ.get("ADMIN_USERNAME", "HwatSauce")
+    username = os.environ.get("ADMIN_USERNAME", "admin")
     password = os.environ.get("ADMIN_PASSWORD", "")
     ingest_token = os.environ.get("AGENT_INGEST_TOKEN", "")
 

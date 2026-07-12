@@ -10,8 +10,8 @@ from app.core.config import Settings, enforce_startup_guards, parse_cors_origins
 def _settings(**overrides) -> Settings:
     base = dict(
         session_secret="active-decoy-development-secret",
-        admin_username="HwatSauce",
-        admin_password="Active-Decoy!2026",
+        admin_username="admin",
+        admin_password="changeme-dev-only",
         admin_email="",
         app_env="development",
         neo4j_uri="bolt://localhost:7687",
@@ -76,7 +76,7 @@ class ConfigValidationTests(unittest.TestCase):
     def test_get_settings_uses_lab_defaults_under_unittest(self) -> None:
         from app.core.config import get_settings
 
-        self.assertEqual(get_settings().admin_username, "HwatSauce")
+        self.assertEqual(get_settings().admin_username, "admin")
         self.assertEqual(get_settings().app_env, "development")
 
     def test_warns_on_defaults_and_missing_neo4j(self) -> None:

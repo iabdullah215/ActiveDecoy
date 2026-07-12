@@ -162,7 +162,7 @@ class MonitoringIngestApiTests(unittest.TestCase):
     def test_stream_ready_when_authenticated(self) -> None:
         login = self.client.post(
             "/login",
-            data={"username": "HwatSauce", "password": "Active-Decoy!2026"},
+            data={"username": "admin", "password": "changeme-dev-only"},
             follow_redirects=False,
         )
         self.assertEqual(login.status_code, 303)

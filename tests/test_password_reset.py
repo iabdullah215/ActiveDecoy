@@ -43,8 +43,8 @@ class PasswordResetUnitTests(unittest.TestCase):
         settings = _settings(
             session_secret="unit-test-secret-key-32chars-min",
             admin_email="admin@lab.local",
-            admin_username="HwatSauce",
-            admin_password="Active-Decoy!2026",
+            admin_username="admin",
+            admin_password="changeme-dev-only",
             console_auth_mode="env",
             smtp_dev_log=True,
         )
@@ -52,7 +52,7 @@ class PasswordResetUnitTests(unittest.TestCase):
         ok, message = complete_password_reset(settings, token=token, new_password="New-Secure-Pass!")
         self.assertTrue(ok, message)
         self.assertTrue(verify_env_admin_password("New-Secure-Pass!", settings))
-        auth = authenticate_console("HwatSauce", "New-Secure-Pass!", settings)
+        auth = authenticate_console("admin", "New-Secure-Pass!", settings)
         self.assertTrue(auth.ok)
 
     @patch("app.core.password_reset.send_email", return_value=(True, "sent"))

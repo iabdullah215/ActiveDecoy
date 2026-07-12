@@ -111,7 +111,7 @@ class MonitoringApiTests(unittest.TestCase):
     def _login(self) -> None:
         response = self.client.post(
             "/login",
-            data={"username": "HwatSauce", "password": "Active-Decoy!2026"},
+            data={"username": "admin", "password": "changeme-dev-only"},
             follow_redirects=False,
         )
         self.assertEqual(response.status_code, 303)

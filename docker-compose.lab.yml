@@ -9,7 +9,7 @@ services:
       LDAP_ORGANISATION: Lab
       LDAP_DOMAIN: lab.local
       LDAP_BASE_DN: dc=lab,dc=local
-      LDAP_ADMIN_PASSWORD: ${LAB_LDAP_ADMIN_PASSWORD:-ActiveDecoyLab!2026}
+      LDAP_ADMIN_PASSWORD: ${LAB_LDAP_ADMIN_PASSWORD:-change-me-ldap}
       LDAP_TLS: "false"
     healthcheck:
       test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b dc=lab,dc=local -s base '(objectclass=*)' dn | grep -q 'dc=lab,dc=local'"]
@@ -31,7 +31,7 @@ services:
       LDAP_HOST: dc01.lab.local
       LDAP_PORT: "389"
       LDAP_BIND_DN: cn=admin,dc=lab,dc=local
-      LDAP_PASSWORD: ${LAB_LDAP_ADMIN_PASSWORD:-ActiveDecoyLab!2026}
+      LDAP_PASSWORD: ${LAB_LDAP_ADMIN_PASSWORD:-change-me-ldap}
       LDAP_BASE_DN: dc=lab,dc=local
       LDAP_LAB_MODE: "true"
       HYPERVISOR_TYPE: utm

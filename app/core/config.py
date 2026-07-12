@@ -37,8 +37,8 @@ def _bootstrap_unittest_env() -> None:
             "APP_ENV": "development",
             "APP_DEBUG": "false",
             "ENFORCE_SECURE_DEFAULTS": "false",
-            "ADMIN_USERNAME": "HwatSauce",
-            "ADMIN_PASSWORD": "Active-Decoy!2026",
+            "ADMIN_USERNAME": "admin",
+            "ADMIN_PASSWORD": "changeme-dev-only",
             "SESSION_SECRET": "active-decoy-development-secret",
             "AGENT_INGEST_TOKEN": "",
             "CONSOLE_AUTH_MODE": "env",
@@ -55,8 +55,8 @@ load_dotenv(PROJECT_ROOT / ".env", override=True)
 _bootstrap_unittest_env()
 
 _DEFAULT_SESSION_SECRET = "active-decoy-development-secret"
-_DEFAULT_ADMIN_USERNAME = "HwatSauce"
-_DEFAULT_ADMIN_PASSWORD = "Active-Decoy!2026"
+_DEFAULT_ADMIN_USERNAME = "admin"
+_DEFAULT_ADMIN_PASSWORD = "changeme-dev-only"
 _DEFAULT_CORS_ORIGINS = "http://127.0.0.1:8000,http://localhost:8000"
 
 

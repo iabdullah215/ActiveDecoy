@@ -186,7 +186,7 @@ def main() -> int:
     args = parser.parse_args()
 
     load_dotenv(ROOT / ".env")
-    username = os.environ.get("ADMIN_USERNAME", "HwatSauce")
+    username = os.environ.get("ADMIN_USERNAME", "admin")
     password = os.environ.get("ADMIN_PASSWORD", "")
     if not password:
         print("ADMIN_PASSWORD not set in .env", file=sys.stderr)

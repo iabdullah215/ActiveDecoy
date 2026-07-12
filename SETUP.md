@@ -35,7 +35,7 @@ docker compose logs -f app
 docker compose down
 ```
 
-Compose defaults (`NEO4J_PASSWORD=ActiveDecoyNeo4j!`, lab admin credentials) are for **local authorized labs only**. Change them before any shared use.
+Compose defaults (`NEO4J_PASSWORD=change-me-neo4j`, lab admin credentials) are for **local authorized labs only**. Change them before any shared use.
 
 ## 1. Python Environment (local development)
 

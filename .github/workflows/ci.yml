@@ -31,8 +31,8 @@ jobs:
       - name: Unit and API tests
         env:
           SESSION_SECRET: ci-test-secret
-          ADMIN_USERNAME: HwatSauce
-          ADMIN_PASSWORD: Active-Decoy!2026
+          ADMIN_USERNAME: admin
+          ADMIN_PASSWORD: changeme-dev-only
           NEO4J_PASSWORD: ""
         run: python -m unittest discover -s tests -v
 

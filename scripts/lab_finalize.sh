@@ -26,7 +26,7 @@ apply_lab_env() {
     "LDAP_HOST=dc01.lab.local" \
     "LDAP_PORT=389" \
     "LDAP_BIND_DN=cn=admin,dc=lab,dc=local" \
-    "LDAP_PASSWORD=ActiveDecoyLab!2026" \
+    "LDAP_PASSWORD=change-me-ldap" \
     "LDAP_BASE_DN=dc=lab,dc=local" \
     "LDAP_LAB_MODE=true" \
     "HYPERVISOR_TYPE=utm" \

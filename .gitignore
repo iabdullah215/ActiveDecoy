@@ -1,5 +1,7 @@
 .env
+washu_agent/.env
 .venv/
+.DS_Store
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -18,3 +20,5 @@ data/monitoring_events.tmp
 data/agents.json
 data/agents.json.tmp
 data/admin_password.json
+data/*.db
+data/activedecoy.db
